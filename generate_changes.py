@@ -20,6 +20,7 @@ import yaml
 from datetime import datetime
 from subprocess import run, PIPE
 from pathlib import Path
+import subprocess
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -145,6 +146,17 @@ def summarize_repo_section(title, items, limit=5):
         md += "\n"
     return md
 
+def has_changes(repo_dir):
+    """Return True if there are untracked or modified files in the given repo/worktree."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    return bool(result.stdout.strip())
+
 # --- Main logic ---
 def main():
     print("🔍 Generating Markdown changes timeline...")
@@ -242,14 +254,15 @@ def main():
     with open(output_file, "w") as f:
         f.write(markdown_output)
 
-    # Commit result in markdown repo
-    run_cmd(["git", "add", "changes_timeline.md"], cwd=MARKDOWN_WORKTREE_DIR)
-    run_cmd(
-        ["git", "commit", "-m", f"Update markdown changes ({datetime.now().isoformat()})"],
-        cwd=MARKDOWN_WORKTREE_DIR,
-    )
-
-    print("✅ Markdown changes generated and committed successfully.")
+    if has_changes(MARKDOWN_WORKTREE_DIR):
+        run_cmd(["git", "add", "changes_timeline.md"], cwd=MARKDOWN_WORKTREE_DIR)
+        run_cmd(
+            ["git", "commit", "-m", f"Update markdown changes ({datetime.now().isoformat()})"],
+            cwd=MARKDOWN_WORKTREE_DIR,
+        )
+        print("✅ Markdown changes generated and committed successfully.")
+    else:
+        print("ℹ️ No changes to commit in markdown worktree.")
 
 if __name__ == "__main__":
     main()
