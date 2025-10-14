@@ -142,20 +142,24 @@ def main():
     for repo_id, clone_url in repos:
         print(f"\nProcessing repo: {repo_id}")
         repo_path = ensure_repo_cloned(repo_id, clone_url)
-        manifest = {}
+
+        # Separate manifests for branches and tags
+        branches_manifest = {}
+        tags_manifest = {}
 
         # Branches
         branches = run(["git", "for-each-ref", "--format=%(refname:short)", "refs/heads"], cwd=repo_path).splitlines()
         for branch in branches:
-            export_branch_commits(repo_path, repo_id, branch, manifest)
+            export_branch_commits(repo_path, repo_id, branch, branches_manifest)
 
         # Tags
         tags = run(["git", "for-each-ref", "--format=%(refname:short)", "refs/tags"], cwd=repo_path).splitlines()
         for tag in tags:
-            export_tag_commit(repo_path, repo_id, tag, manifest)
+            export_tag_commit(repo_path, repo_id, tag, tags_manifest)
 
-        # Write manifest for this repo
-        generate_manifest(manifest, repo_id)
+        # Write manifests separately
+        generate_manifest(branches_manifest, repo_id, "branches-manifest.json")
+        generate_manifest(tags_manifest, repo_id, "tags-manifest.json")
 
     # Commit snapshot to tracking branch
     os.chdir(TRACKING_WORKTREE_DIR)
