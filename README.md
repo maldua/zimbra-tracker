@@ -12,6 +12,37 @@ Aimed at tracking Zimbra Github organization repos specifically.
 
 ---
 
+## Setup
+
+This repo needs to write to a remote by default.
+
+You can either set it up to write it back to Github:
+```bash
+cd zimbra-tracker
+git fetch origin tracking
+git branch tracking origin/tracking
+git branch --set-upstream-to=origin/tracking tracking
+```
+
+Or you can make it write to a local directory with something like:
+```bash
+cd zimbra-tracker
+mkdir ../zimbra-tracking-local-repo
+git clone . ../zimbra-tracking-local-repo
+git remote add localtracking ../zimbra-tracking-local-repo
+
+git fetch origin
+git branch tracking origin/tracking
+
+cd ../zimbra-tracking-local-repo
+git fetch origin
+git branch tracking origin/tracking
+
+cd ../zimbra-tracker
+git fetch localtracking tracking
+git branch --set-upstream-to=localtracking/tracking tracking
+```
+
 ## 🔧 Features
 
 - Exports all **branches** and **tags** separately.
