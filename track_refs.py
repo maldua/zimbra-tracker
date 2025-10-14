@@ -152,8 +152,6 @@ def main():
     run(["git", "add", "."], capture=False)
     snapshot_msg = f"Snapshot {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}"
     run(["git", "commit", "-m", snapshot_msg], capture=False)
-    run(["git", "push"], capture=False)
-    print("\nSnapshot committed to tracking branch!")
 
     # Clean up temporary clones
     shutil.rmtree(TMP_REPOS_DIR, ignore_errors=True)
