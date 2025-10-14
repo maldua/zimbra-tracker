@@ -27,6 +27,7 @@ import os
 import subprocess
 import sys
 import json
+import shutil
 from datetime import datetime
 from refname_utils import branch_file_path, tag_file_path, safe_refname_to_filename, filename_to_refname
 
@@ -34,6 +35,7 @@ from refname_utils import branch_file_path, tag_file_path, safe_refname_to_filen
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
 REPO_LIST_FILE = "zimbra_tracked_repos.txt"
 REPOS_DIR = os.path.join(TRACKING_WORKTREE_DIR, "repos")
+TMP_REPOS_DIR = "tmp_repos"  # temporary clone location (ignored by git)
 
 def run(cmd, cwd=None, capture=True):
     """Run a command and return stdout"""
@@ -79,8 +81,9 @@ def read_tracked_repos():
     return repos
 
 def ensure_repo_cloned(repo_id, clone_url):
-    """Clone the repo if not exists, else fetch updates"""
-    path = os.path.join(REPOS_DIR, repo_id)
+    """Clone the repo in temporary directory if not exists, else fetch updates"""
+    os.makedirs(TMP_REPOS_DIR, exist_ok=True)
+    path = os.path.join(TMP_REPOS_DIR, repo_id)
     if not os.path.exists(path):
         print(f"Cloning {repo_id}...")
         subprocess.run(["git", "clone", "--mirror", clone_url, path], check=True)
@@ -150,6 +153,9 @@ def main():
     run(["git", "commit", "-m", snapshot_msg], capture=False)
     run(["git", "push"], capture=False)
     print("\nSnapshot committed to tracking branch!")
+
+    # Clean up temporary clones
+    shutil.rmtree(TMP_REPOS_DIR, ignore_errors=True)
 
 if __name__ == "__main__":
     main()
