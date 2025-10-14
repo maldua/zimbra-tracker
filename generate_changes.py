@@ -23,6 +23,7 @@ from pathlib import Path
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
+EVENTS_WORKTREE_DIR = "../zimbra-tracker-events"
 MARKDOWN_WORKTREE_DIR = "../zimbra-tracker-markdown-changes"
 EVENTS_BRANCH = "events"
 MARKDOWN_BRANCH = "markdown_changes"
@@ -74,18 +75,48 @@ def ensure_markdown_worktree():
             # Ensure it's on the correct branch
             run_cmd(["git", "checkout", MARKDOWN_BRANCH], cwd=MARKDOWN_WORKTREE_DIR)
 
+def ensure_events_branch_exists():
+    """Ensure the 'events' branch exists locally; if not, try to fetch from origin."""
+    branches = run_cmd(["git", "branch", "--list", EVENTS_BRANCH])
+    if not branches:
+        print(f"⚠️ Branch '{EVENTS_BRANCH}' not found locally. Trying to fetch from origin...")
+        try:
+            run_cmd(["git", "fetch", "origin", f"{EVENTS_BRANCH}:{EVENTS_BRANCH}"])
+        except RuntimeError:
+            raise RuntimeError(
+                f"Could not find or fetch '{EVENTS_BRANCH}' branch. Aborting."
+            )
+
+def ensure_events_worktree():
+    """Ensure the events worktree exists."""
+    if not os.path.exists(EVENTS_WORKTREE_DIR):
+        print("📦 Setting up events worktree...")
+        run_cmd(["git", "worktree", "add", EVENTS_WORKTREE_DIR, EVENTS_BRANCH])
+    else:
+        git_path = os.path.join(EVENTS_WORKTREE_DIR, ".git")
+        if not os.path.exists(git_path):
+            print("⚠️ Events directory exists but isn’t a git worktree — recreating...")
+            run_cmd(["rm", "-rf", EVENTS_WORKTREE_DIR])
+            run_cmd(["git", "worktree", "add", EVENTS_WORKTREE_DIR, EVENTS_BRANCH])
+        else:
+            print("✅ Events worktree already exists, updating...")
+            run_cmd(["git", "checkout", EVENTS_BRANCH], cwd=EVENTS_WORKTREE_DIR)
+            run_cmd(["git", "pull"], cwd=EVENTS_WORKTREE_DIR)
+
 def load_events():
-    """Load events YAML files from events branch directory."""
+    """Load events YAML files from the events worktree."""
+    events_dir = EVENTS_WORKTREE_DIR
     events = []
-    if not os.path.isdir(EVENTS_DIR):
-        print(f"⚠️ No events directory found at {EVENTS_DIR}")
+    if not os.path.isdir(events_dir):
+        print(f"⚠️ No events directory found at {events_dir}")
         return events
 
-    for file in Path(EVENTS_DIR).glob("*.yaml"):
+    for file in Path(events_dir).glob("*.yaml"):
         with open(file, "r") as f:
             data = yaml.safe_load(f)
             if data:
                 events.append(data)
+
     # Sort by date descending (newest first)
     events.sort(key=lambda e: e["date"], reverse=True)
     return events
@@ -117,6 +148,9 @@ def summarize_repo_section(title, items, limit=5):
 # --- Main logic ---
 def main():
     print("🔍 Generating Markdown changes timeline...")
+
+    ensure_events_branch_exists()
+    ensure_events_worktree()
 
     # Ensure markdown worktree and branch exist first
     ensure_markdown_worktree()
