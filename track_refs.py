@@ -110,34 +110,32 @@ def write_commit_list(filepath, commits):
         for line in commits:
             f.write(line + "\n")
 
-def export_branch_commits(repo_path, repo_id, branch_name, manifest):
-    """Export commits for a branch"""
-    commit_lines = run(["git", "log", "--reverse", "--pretty=format:%H %s", branch_name], cwd=repo_path).splitlines()
-    file_path = branch_file_path(os.path.join(REPOS_DIR, repo_id), branch_name)
-    write_commit_list(file_path, commit_lines)
-    manifest[branch_name] = safe_refname_to_filename(branch_name)
-    print(f"Exported {len(commit_lines)} commits for branch {branch_name}")
-
-def export_tag_commits(repo_path, repo_id, tag_name, manifest, all_tags):
-    """Export all commits reachable from a tag and update global tag list"""
-    # Get the full list of commits (oldest to newest) reachable from this tag
+def export_ref_commits(repo_path, ref_name, file_path, manifest):
+    """
+    Export all commits reachable from a given ref (branch or tag),
+    write them to the given file_path, and update the manifest.
+    Returns the list of commit lines.
+    """
     commit_lines = run(
-        ["git", "log", "--reverse", "--pretty=format:%H %s", tag_name],
+        ["git", "log", "--reverse", "--pretty=format:%H %s", ref_name],
         cwd=repo_path
     ).splitlines()
 
-    # Extract the top commit hash (the commit the tag points to)
-    commit_hash = commit_lines[-1].split(" ", 1)[0] if commit_lines else ""
-
-    # Write commits to file
-    file_path = tag_file_path(os.path.join(REPOS_DIR, repo_id), tag_name)
     write_commit_list(file_path, commit_lines)
+    manifest[ref_name] = safe_refname_to_filename(ref_name)
 
-    # Update manifests
-    manifest[tag_name] = safe_refname_to_filename(tag_name)
-    all_tags[f"{repo_id}:{tag_name}"] = commit_hash
+    print(f"Exported {len(commit_lines)} commits for {ref_name}")
 
-    print(f"Exported {len(commit_lines)} commits for tag {tag_name}")
+def export_branch_commits(repo_path, repo_id, branch_name, manifest):
+    """Export commits for a branch"""
+    file_path = branch_file_path(os.path.join(REPOS_DIR, repo_id), branch_name)
+    export_ref_commits(repo_path, branch_name, file_path, manifest)
+
+def export_tag_commits(repo_path, repo_id, tag_name, manifest, all_tags):
+    """Export commits for a tag and update global tag list"""
+    file_path = tag_file_path(os.path.join(REPOS_DIR, repo_id), tag_name)
+    export_ref_commits(repo_path, tag_name, file_path, manifest)
+    all_tags.append(tag_name)
 
 def generate_manifest(manifest, repo_id, filename):
     """Write manifest JSON for a repo"""
