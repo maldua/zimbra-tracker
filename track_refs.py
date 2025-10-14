@@ -47,7 +47,12 @@ def run(cmd, cwd=None, capture=True):
     return result.stdout.strip() if capture else None
 
 def ensure_tracking_worktree():
-    """Create or reuse the tracking branch worktree"""
+    """Create or reuse the tracking branch worktree."""
+    # Save current branch name (if any)
+    current_branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    if current_branch == "HEAD":
+        current_branch = None  # detached HEAD or no branch checked out
+
     if not os.path.exists(TRACKING_WORKTREE_DIR):
         print("Setting up tracking worktree...")
         # Check if tracking branch exists
@@ -57,7 +62,12 @@ def ensure_tracking_worktree():
             run(["git", "checkout", "--orphan", "tracking"])
             run(["git", "rm", "-rf", "."])
             run(["git", "commit", "--allow-empty", "-m", "Initial tracking branch"])
-            run(["git", "checkout", "main"])
+        # Switch back to previous branch if available
+        if current_branch:
+            run(["git", "checkout", current_branch])
+        else:
+            # Fallback to default branch if we were detached
+            print("Warning: not on a branch before creating tracking; staying detached.")
         # Add worktree
         run(["git", "worktree", "add", TRACKING_WORKTREE_DIR, "tracking"])
     else:
