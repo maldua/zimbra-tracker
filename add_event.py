@@ -35,6 +35,10 @@ def run(cmd, cwd=None, capture=True):
         sys.exit(1)
     return result.stdout.strip() if capture else None
 
+def get_current_branch():
+    """Return the current branch name"""
+    return run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+
 def ensure_events_branch():
     """Create or switch to the events orphan branch"""
     branches = run(["git", "branch", "--list", EVENTS_BRANCH]).splitlines()
@@ -70,6 +74,8 @@ def main():
     parser.add_argument("--date", help="Date of the event (ISO format), default UTC now")
     args = parser.parse_args()
 
+    original_branch = get_current_branch()  # save original branch
+
     ensure_events_branch()
     event_file = save_event(args.title, args.description, args.date)
 
@@ -77,6 +83,10 @@ def main():
     run(["git", "commit", "-m", f"Add event: {args.title}"], capture=False)
     run(["git", "push", "--set-upstream", "origin", EVENTS_BRANCH], capture=False)
     print(f"Event '{args.title}' added in {EVENTS_BRANCH} branch.")
+
+    # Switch back to the original branch
+    run(["git", "checkout", original_branch])
+    print(f"Returned to original branch '{original_branch}'.")
 
 if __name__ == "__main__":
     main()
