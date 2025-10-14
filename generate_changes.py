@@ -38,6 +38,9 @@ def run_cmd(cmd, cwd=None):
 
 def ensure_markdown_worktree():
     """Ensure the markdown worktree and branch exist."""
+    if not os.path.exists(".git"):
+        raise RuntimeError("This script must be run inside the main zimbra-tracker repository.")
+
     if not os.path.exists(MARKDOWN_WORKTREE_DIR):
         print("📦 Setting up markdown_changes worktree...")
         # Save current branch name
@@ -60,9 +63,16 @@ def ensure_markdown_worktree():
         # Add worktree
         run_cmd(["git", "worktree", "add", MARKDOWN_WORKTREE_DIR, MARKDOWN_BRANCH])
     else:
-        print("✅ Markdown worktree already exists, updating...")
-        # Ensure it's on the correct branch
-        run_cmd(["git", "checkout", MARKDOWN_BRANCH], cwd=MARKDOWN_WORKTREE_DIR)
+        # Directory exists — check if it's a valid git repo
+        git_path = os.path.join(MARKDOWN_WORKTREE_DIR, ".git")
+        if not os.path.exists(git_path):
+            print("⚠️ Markdown directory exists but isn’t a git worktree — recreating...")
+            run_cmd(["rm", "-rf", MARKDOWN_WORKTREE_DIR])
+            run_cmd(["git", "worktree", "add", MARKDOWN_WORKTREE_DIR, MARKDOWN_BRANCH])
+        else:
+            print("✅ Markdown worktree already exists, updating...")
+            # Ensure it's on the correct branch
+            run_cmd(["git", "checkout", MARKDOWN_BRANCH], cwd=MARKDOWN_WORKTREE_DIR)
 
 def ensure_repo_and_branch(repo_dir, branch_name):
     """Ensure the repo dir exists and checkout/create orphan branch (markdown repo only)."""
