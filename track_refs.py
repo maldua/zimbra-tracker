@@ -20,7 +20,8 @@ Features:
 - Exports commits for all branches and tags into per-repo directories
 - Uses filesystem-safe percent-encoded filenames
 - Generates refs-manifest.json for branch/tag reverse lookup
-- Commits daily snapshots to the tracking branch
+- Uses a temporary directory to clone repos to avoid committing full repos
+ Exports commits for all branches and tags into per-repo directories in tracking branch
 """
 
 import os
