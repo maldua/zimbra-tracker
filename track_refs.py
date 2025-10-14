@@ -19,7 +19,7 @@ Features:
 - Clones or updates tracked repositories
 - Exports commits for all branches and tags into per-repo directories
 - Uses filesystem-safe percent-encoded filenames
-- Generates refs-manifest.json for branch/tag reverse lookup
+- Generates per-repo branch/tag manifests + global all-tags.json
 - Uses a temporary directory to clone repos to avoid committing full repos
  Exports commits for all branches and tags into per-repo directories in tracking branch
 """
@@ -108,21 +108,30 @@ def export_branch_commits(repo_path, repo_id, branch_name, manifest):
     manifest[branch_name] = safe_refname_to_filename(branch_name)
     print(f"Exported {len(commit_lines)} commits for branch {branch_name}")
 
-def export_tag_commit(repo_path, repo_id, tag_name, manifest):
-    """Export commits for a tag"""
+def export_tag_commit(repo_path, repo_id, tag_name, manifest, all_tags):
+    """Export commits for a tag and update global tag list"""
     commit_line = run(["git", "log", "-1", "--pretty=format:%H %s", tag_name], cwd=repo_path)
+    commit_hash = commit_line.split(" ", 1)[0] if commit_line else ""
     file_path = tag_file_path(os.path.join(REPOS_DIR, repo_id), tag_name)
     write_commit_list(file_path, [commit_line])
     manifest[tag_name] = safe_refname_to_filename(tag_name)
+    all_tags[f"{repo_id}:{tag_name}"] = commit_hash
     print(f"Exported commit for tag {tag_name}")
 
-def generate_manifest(manifest, repo_id):
-    """Write refs-manifest.json for a repo"""
-    path = os.path.join(REPOS_DIR, repo_id, "refs-manifest.json")
+def generate_manifest(manifest, repo_id, filename):
+    """Write manifest JSON for a repo"""
+    path = os.path.join(REPOS_DIR, repo_id, filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
-    print(f"Generated refs-manifest.json for {repo_id}")
+        json.dump(manifest, f, indent=2, sort_keys=True)
+    print(f"Generated {filename} for {repo_id}")
+
+def write_all_tags_manifest(all_tags):
+    """Write the aggregated all-tags.json file at the root of tracking worktree"""
+    path = os.path.join(TRACKING_WORKTREE_DIR, "all-tags.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(all_tags, f, indent=2, sort_keys=True)
+    print(f"Generated global all-tags.json with {len(all_tags)} tags total")
 
 def has_changes():
     """Return True if there are untracked or modified files."""
@@ -138,6 +147,7 @@ def main():
     ensure_tracking_worktree()
     os.makedirs(REPOS_DIR, exist_ok=True)
     repos = read_tracked_repos()
+    all_tags = {}
 
     for repo_id, clone_url in repos:
         print(f"\nProcessing repo: {repo_id}")
@@ -155,11 +165,14 @@ def main():
         # Tags
         tags = run(["git", "for-each-ref", "--format=%(refname:short)", "refs/tags"], cwd=repo_path).splitlines()
         for tag in tags:
-            export_tag_commit(repo_path, repo_id, tag, tags_manifest)
+            export_tag_commit(repo_path, repo_id, tag, tags_manifest, all_tags)
 
         # Write manifests separately
         generate_manifest(branches_manifest, repo_id, "branches-manifest.json")
         generate_manifest(tags_manifest, repo_id, "tags-manifest.json")
+
+    # Write global tags manifest
+    write_all_tags_manifest(all_tags)
 
     # Commit snapshot to tracking branch
     os.chdir(TRACKING_WORKTREE_DIR)
