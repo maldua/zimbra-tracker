@@ -125,11 +125,14 @@ def generate_manifest(manifest, repo_id):
     print(f"Generated refs-manifest.json for {repo_id}")
 
 def has_changes():
+    """Return True if there are untracked or modified files."""
     result = subprocess.run(
-        ["git", "diff-index", "--quiet", "HEAD", "--"],
-        cwd=TRACKING_WORKTREE_DIR
+        ["git", "status", "--porcelain"],
+        cwd=TRACKING_WORKTREE_DIR,
+        stdout=subprocess.PIPE,
+        text=True
     )
-    return result.returncode != 0
+    return bool(result.stdout.strip())
 
 def main():
     ensure_tracking_worktree()
