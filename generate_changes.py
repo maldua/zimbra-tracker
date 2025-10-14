@@ -124,7 +124,7 @@ def main():
     # Load events from the tracking repo (static folder)
     events = load_events()
 
-    # Read tracking repo commits directly
+    # Read tracking repo commits directly (oldest → newest)
     tracking_commits = read_tracking_commits()
 
     markdown_output = "# Zimbra Tracker – Changes Timeline\n\n"
@@ -134,32 +134,76 @@ def main():
     for ev in events:
         markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
 
-    # Traverse tracking commits newest to oldest
+    # Traverse commits **newest to oldest** to produce snapshots
     for commit_hash in reversed(tracking_commits):
+        # Get parent commits
+        parents_line = run_cmd(
+            ["git", "rev-list", "--parents", "-n", "1", commit_hash], cwd=TRACKING_WORKTREE_DIR
+        ).split()
+        commit_parents = parents_line[1:]  # skip the commit itself
+
+        # Skip root commits (no parent)
+        if not commit_parents:
+            continue
+
+        parent_hash = commit_parents[0]
+
         commit_time = run_cmd(
             ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
         )
         markdown_output += f"## Snapshot {commit_time}\n\n"
 
-        # Global tags
-        global_tags_yaml = read_tracking_file(commit_hash, "all_tags.yaml")
-        if global_tags_yaml:
-            tags = yaml.safe_load(global_tags_yaml)
-            markdown_output += summarize_repo_section("Global Tags", {t: [] for t in tags})
+        # Load current and parent snapshots
+        current_snapshot = {
+            "global_tags": yaml.safe_load(read_tracking_file(commit_hash, "all_tags.yaml") or "[]"),
+            "repo_tags": yaml.safe_load(read_tracking_file(commit_hash, "repo_tags.yaml") or "{}"),
+            "repo_branches": yaml.safe_load(read_tracking_file(commit_hash, "repo_branches.yaml") or "{}"),
+        }
 
-        # Repo-specific tags
-        repo_tags_yaml = read_tracking_file(commit_hash, "repo_tags.yaml")
-        if repo_tags_yaml:
-            repo_tags = yaml.safe_load(repo_tags_yaml)
-            markdown_output += summarize_repo_section("Repo Tags", repo_tags)
+        parent_snapshot = {
+            "global_tags": yaml.safe_load(read_tracking_file(parent_hash, "all_tags.yaml") or "[]"),
+            "repo_tags": yaml.safe_load(read_tracking_file(parent_hash, "repo_tags.yaml") or "{}"),
+            "repo_branches": yaml.safe_load(read_tracking_file(parent_hash, "repo_branches.yaml") or "{}"),
+        }
 
-        # Repo-specific branches
-        repo_branches_yaml = read_tracking_file(commit_hash, "repo_branches.yaml")
-        if repo_branches_yaml:
-            repo_branches = yaml.safe_load(repo_branches_yaml)
-            markdown_output += summarize_repo_section("Repo Branches", repo_branches)
+        # --- Global tags changes ---
+        new_global_tags = set(current_snapshot["global_tags"]) - set(parent_snapshot["global_tags"])
+        removed_global_tags = set(parent_snapshot["global_tags"]) - set(current_snapshot["global_tags"])
+        if new_global_tags or removed_global_tags:
+            global_tags_changes = {}
+            if new_global_tags:
+                global_tags_changes.update({tag: [] for tag in new_global_tags})
+            if removed_global_tags:
+                global_tags_changes.update({f"{tag} (removed)": [] for tag in removed_global_tags})
+            markdown_output += summarize_repo_section("Global Tags", global_tags_changes)
+
+        # --- Repo tags changes ---
+        repo_tags_changes = {}
+        for repo, tags in current_snapshot["repo_tags"].items():
+            parent_tags = parent_snapshot["repo_tags"].get(repo, [])
+            added = set(tags) - set(parent_tags)
+            if added:
+                repo_tags_changes[repo] = list(added)
+        if repo_tags_changes:
+            markdown_output += summarize_repo_section("Repo Tags", repo_tags_changes)
+
+        # --- Repo branches changes ---
+        repo_branches_changes = {}
+        for repo, branches in current_snapshot["repo_branches"].items():
+            parent_branches = parent_snapshot["repo_branches"].get(repo, {})
+            for branch_name, commits in branches.items():
+                parent_commits = parent_branches.get(branch_name, [])
+                # Only show new commits
+                new_commits = [c for c in commits if c not in parent_commits]
+                if new_commits:
+                    if repo not in repo_branches_changes:
+                        repo_branches_changes[repo] = {}
+                    repo_branches_changes[repo][branch_name] = new_commits
+        if repo_branches_changes:
+            markdown_output += summarize_repo_section("Repo Branches", repo_branches_changes)
 
     # Write markdown file
+    os.makedirs(MARKDOWN_WORKTREE_DIR, exist_ok=True)
     output_file = os.path.join(MARKDOWN_WORKTREE_DIR, "changes_timeline.md")
     with open(output_file, "w") as f:
         f.write(markdown_output)
