@@ -124,6 +124,13 @@ def generate_manifest(manifest, repo_id):
         json.dump(manifest, f, indent=2)
     print(f"Generated refs-manifest.json for {repo_id}")
 
+def has_changes():
+    result = subprocess.run(
+        ["git", "diff-index", "--quiet", "HEAD", "--"],
+        cwd=TRACKING_WORKTREE_DIR
+    )
+    return result.returncode != 0
+
 def main():
     ensure_tracking_worktree()
     os.makedirs(REPOS_DIR, exist_ok=True)
@@ -149,9 +156,12 @@ def main():
 
     # Commit snapshot to tracking branch
     os.chdir(TRACKING_WORKTREE_DIR)
-    run(["git", "add", "."], capture=False)
-    snapshot_msg = f"Snapshot {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}"
-    run(["git", "commit", "-m", snapshot_msg], capture=False)
+    if has_changes():
+        run(["git", "add", "."], capture=False)
+        snapshot_msg = f"Snapshot {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        run(["git", "commit", "-m", snapshot_msg], capture=False)
+    else:
+        print("No changes to commit")
 
     # Clean up temporary clones
     shutil.rmtree(TMP_REPOS_DIR, ignore_errors=True)
