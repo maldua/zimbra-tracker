@@ -105,7 +105,7 @@ def export_branch_commits(repo_path, repo_id, branch_name, manifest):
     commit_lines = run(["git", "log", "--reverse", "--pretty=format:%H %s", branch_name], cwd=repo_path).splitlines()
     file_path = branch_file_path(os.path.join(REPOS_DIR, repo_id), branch_name)
     write_commit_list(file_path, commit_lines)
-    manifest[safe_refname_to_filename(branch_name)] = branch_name
+    manifest[branch_name] = safe_refname_to_filename(branch_name)
     print(f"Exported {len(commit_lines)} commits for branch {branch_name}")
 
 def export_tag_commit(repo_path, repo_id, tag_name, manifest):
@@ -113,7 +113,7 @@ def export_tag_commit(repo_path, repo_id, tag_name, manifest):
     commit_line = run(["git", "log", "-1", "--pretty=format:%H %s", tag_name], cwd=repo_path)
     file_path = tag_file_path(os.path.join(REPOS_DIR, repo_id), tag_name)
     write_commit_list(file_path, [commit_line])
-    manifest[safe_refname_to_filename(tag_name)] = tag_name
+    manifest[tag_name] = safe_refname_to_filename(tag_name)
     print(f"Exported commit for tag {tag_name}")
 
 def generate_manifest(manifest, repo_id):
