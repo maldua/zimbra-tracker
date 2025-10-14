@@ -135,7 +135,11 @@ def export_tag_commits(repo_path, repo_id, tag_name, manifest, all_tags):
     """Export commits for a tag and update global tag list"""
     file_path = tag_file_path(os.path.join(REPOS_DIR, repo_id), tag_name)
     export_ref_commits(repo_path, tag_name, file_path, manifest)
-    all_tags.append(tag_name)
+
+    # Update global tag dictionary
+    if tag_name not in all_tags:
+        all_tags[tag_name] = set()
+    all_tags[tag_name].add(repo_id)
 
 def generate_manifest(manifest, repo_id, filename):
     """Write manifest JSON for a repo"""
@@ -146,11 +150,18 @@ def generate_manifest(manifest, repo_id, filename):
     print(f"Generated {filename} for {repo_id}")
 
 def write_all_tags_manifest(all_tags):
-    """Write the aggregated all-tags.json file at the root of tracking worktree"""
-    path = os.path.join(TRACKING_WORKTREE_DIR, "all-tags.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(all_tags, f, indent=2, sort_keys=True)
-    print(f"Generated global all-tags.json with {len(all_tags)} tags total")
+    # Save all_tags.txt (just tag names, sorted)
+    all_tags_txt_path = os.path.join(TRACKING_WORKTREE_DIR, "all_tags.txt")
+    with open(all_tags_txt_path, "w", encoding="utf-8") as f:
+        for tag_name in sorted(all_tags.keys()):
+            f.write(tag_name + "\n")
+
+    # Save all_tags.json (tag names with associated repos)
+    all_tags_json_path = os.path.join(TRACKING_WORKTREE_DIR, "all_tags.json")
+    # convert sets to lists for JSON serialization
+    json_serializable = {tag: list(repos) for tag, repos in all_tags.items()}
+    with open(all_tags_json_path, "w", encoding="utf-8") as f:
+        json.dump(json_serializable, f, indent=2, sort_keys=True)
 
 def has_changes():
     """Return True if there are untracked or modified files."""
@@ -166,7 +177,7 @@ def main():
     ensure_tracking_worktree()
     os.makedirs(REPOS_DIR, exist_ok=True)
     repos = read_tracked_repos()
-    all_tags = {}
+    all_tags = {}  # { "tag_name": set_of_repo_ids }
 
     for repo_id, clone_url in repos:
         print(f"\nProcessing repo: {repo_id}")
