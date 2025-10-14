@@ -74,28 +74,6 @@ def ensure_markdown_worktree():
             # Ensure it's on the correct branch
             run_cmd(["git", "checkout", MARKDOWN_BRANCH], cwd=MARKDOWN_WORKTREE_DIR)
 
-def ensure_repo_and_branch(repo_dir, branch_name):
-    """Ensure the repo dir exists and checkout/create orphan branch (markdown repo only)."""
-    os.makedirs(repo_dir, exist_ok=True)
-    if not os.path.exists(os.path.join(repo_dir, ".git")):
-        raise RuntimeError(f"{repo_dir} is not a git repository.")
-
-    current_branch = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
-
-    # Check if branch exists
-    branches = run_cmd(["git", "branch", "--list", branch_name], cwd=repo_dir)
-    if not branches:
-        run_cmd(["git", "checkout", "--orphan", branch_name], cwd=repo_dir)
-        run_cmd(["git", "rm", "-rf", "."], cwd=repo_dir)
-    else:
-        run_cmd(["git", "checkout", branch_name], cwd=repo_dir)
-
-    return current_branch  # So we can restore it later
-
-def restore_branch(repo_dir, branch_name):
-    """Restore previously active branch."""
-    run_cmd(["git", "checkout", branch_name], cwd=repo_dir)
-
 def load_events():
     """Load events YAML files from events branch directory."""
     events = []
