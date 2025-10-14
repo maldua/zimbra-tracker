@@ -143,9 +143,6 @@ def main():
     # Ensure markdown worktree and branch exist first
     ensure_markdown_worktree()
 
-    # Only the markdown repo branch should be checked out
-    prev_branch = ensure_repo_and_branch(MARKDOWN_WORKTREE_DIR, MARKDOWN_BRANCH)
-
     # Load events from the tracking repo (static folder)
     events = load_events()
 
@@ -161,7 +158,9 @@ def main():
 
     # Traverse tracking commits newest to oldest
     for commit_hash in reversed(tracking_commits):
-        commit_time = run_cmd(["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR)
+        commit_time = run_cmd(
+            ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
+        )
         markdown_output += f"## Snapshot {commit_time}\n\n"
 
         # Global tags
@@ -189,10 +188,10 @@ def main():
 
     # Commit result in markdown repo
     run_cmd(["git", "add", "changes_timeline.md"], cwd=MARKDOWN_WORKTREE_DIR)
-    run_cmd(["git", "commit", "-m", f"Update markdown changes ({datetime.now().isoformat()})"], cwd=MARKDOWN_WORKTREE_DIR)
-
-    # Restore previous branch
-    restore_branch(MARKDOWN_WORKTREE_DIR, prev_branch)
+    run_cmd(
+        ["git", "commit", "-m", f"Update markdown changes ({datetime.now().isoformat()})"],
+        cwd=MARKDOWN_WORKTREE_DIR,
+    )
 
     print("✅ Markdown changes generated and committed successfully.")
 
