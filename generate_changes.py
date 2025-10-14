@@ -36,6 +36,34 @@ def run_cmd(cmd, cwd=None):
         raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
     return result.stdout.strip()
 
+def ensure_markdown_worktree():
+    """Ensure the markdown worktree and branch exist."""
+    if not os.path.exists(MARKDOWN_WORKTREE_DIR):
+        print("📦 Setting up markdown_changes worktree...")
+        # Save current branch name
+        current_branch = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+        if current_branch == "HEAD":
+            current_branch = None  # detached or empty repo
+
+        # Check if branch exists
+        branches = run_cmd(["git", "branch", "--list", MARKDOWN_BRANCH])
+        if not branches:
+            # Create orphan branch
+            run_cmd(["git", "checkout", "--orphan", MARKDOWN_BRANCH])
+            run_cmd(["git", "rm", "-rf", "."])
+            run_cmd(["git", "commit", "--allow-empty", "-m", "Initial markdown_changes branch"])
+        # Switch back to previous branch if available
+        if current_branch:
+            run_cmd(["git", "checkout", current_branch])
+        else:
+            print("⚠️ Not on a branch before creating markdown_changes; staying detached.")
+        # Add worktree
+        run_cmd(["git", "worktree", "add", MARKDOWN_WORKTREE_DIR, MARKDOWN_BRANCH])
+    else:
+        print("✅ Markdown worktree already exists, updating...")
+        # Ensure it's on the correct branch
+        run_cmd(["git", "checkout", MARKDOWN_BRANCH], cwd=MARKDOWN_WORKTREE_DIR)
+
 def ensure_repo_and_branch(repo_dir, branch_name):
     """Ensure the repo dir exists and checkout/create orphan branch (markdown repo only)."""
     os.makedirs(repo_dir, exist_ok=True)
@@ -101,6 +129,9 @@ def summarize_repo_section(title, items, limit=5):
 # --- Main logic ---
 def main():
     print("🔍 Generating Markdown changes timeline...")
+
+    # Ensure markdown worktree and branch exist first
+    ensure_markdown_worktree()
 
     # Only the markdown repo branch should be checked out
     prev_branch = ensure_repo_and_branch(MARKDOWN_WORKTREE_DIR, MARKDOWN_BRANCH)
