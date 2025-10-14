@@ -1,0 +1,4 @@
+# Repository identifier      Clone URL
+zm-mailbox                  https://github.com/acmeoo/zm-mailbox.git
+zm-zcs                      https://github.com/acmeoo/zm-zcs.git
+zm-build                    https://github.com/acmeoo/zm-build.git
