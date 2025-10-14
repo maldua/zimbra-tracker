@@ -106,7 +106,7 @@ def ensure_events_worktree():
 
 def load_events():
     """Load events YAML files from the events worktree."""
-    events_dir = EVENTS_WORKTREE_DIR
+    events_dir = os.path.join(EVENTS_WORKTREE_DIR, "events")
     events = []
     if not os.path.isdir(events_dir):
         print(f"⚠️ No events directory found at {events_dir}")
