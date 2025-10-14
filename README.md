@@ -51,6 +51,21 @@ git branch --set-upstream-to=localtracking/tracking tracking
 - Creates a `refs-manifest.json` mapping encoded ↔ original names.
 - Easy to diff between branches or tags using standard tools.
 
+## How to add events
+
+```
+python add_event.py --title "Acme NE 10.1.1" --date "2025-10-13T14:30:00Z" --description "$(cat <<'MARKDOWN'
+Acme NE 10.1.1 has been released.
+
+**Bold**
+
+- Feature A
+- Feature B
+
+MARKDOWN
+)"
+```
+
 ## 📦 Tracking Branch File Structure (Per Repo)
 
 Each tracked repository has its own directory containing separate folders for branches and tags, along with a manifest mapping encoded filenames back to the original ref names.
