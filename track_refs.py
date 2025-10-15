@@ -171,13 +171,13 @@ def write_all_tags_manifest(all_tags):
     with open(all_tags_json_path, "w", encoding="utf-8") as f:
         json.dump(json_serializable, f, indent=2, sort_keys=True)
 
-def write_all_projects_manifest(repos):
-    """Save list of all tracked repo_ids into all-projects.json"""
-    all_projects_path = os.path.join(TRACKING_WORKTREE_DIR, "all-projects.json")
+def write_all_repos_manifest(repos):
+    """Save list of all tracked repo_ids into all-repos.json"""
+    all_projects_path = os.path.join(TRACKING_WORKTREE_DIR, "all-repos.json")
     repo_ids = [repo_id for repo_id, _ in repos]
     with open(all_projects_path, "w", encoding="utf-8") as f:
         json.dump(sorted(repo_ids), f, indent=2)
-    print(f"Generated all-projects.json with {len(repo_ids)} repos")
+    print(f"Generated all-repos.json with {len(repo_ids)} repos")
 
 def has_changes():
     """Return True if there are untracked or modified files."""
@@ -217,8 +217,8 @@ def main():
         generate_manifest(branches_manifest, repo_id, "branches-manifest.json")
         generate_manifest(tags_manifest, repo_id, "tags-manifest.json")
 
-    # Write all tracked project IDs
-    write_all_projects_manifest(repos)
+    # Write all tracked repo IDs
+    write_all_repos_manifest(repos)
 
     # Write global tags manifest
     write_all_tags_manifest(all_tags)
