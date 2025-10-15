@@ -230,10 +230,10 @@ def main():
         removed_repos = sorted(set(parent_repos) - set(current_repos))
 
         if new_repos or removed_repos:
-            markdown_output += "## 🧭 Repository Changes\n\n"
+            markdown_output += "### 🧭 Repository Changes\n\n"
 
             if new_repos:
-                markdown_output += "### 🆕 New Repositories Detected\n\n"
+                markdown_output += "#### 🆕 New Repositories Detected\n\n"
                 for repo_id in new_repos:
                     markdown_output += (
                         f"- **{repo_id}** — Branches and Tags changes will only be shown in future snapshots.\n"
@@ -241,7 +241,7 @@ def main():
                 markdown_output += "\n"
 
             if removed_repos:
-                markdown_output += "### 🗑️ Repositories Removed\n\n"
+                markdown_output += "#### 🗑️ Repositories Removed\n\n"
                 for repo_id in removed_repos:
                     markdown_output += f"- **{repo_id}**\n"
                 markdown_output += "\n"
