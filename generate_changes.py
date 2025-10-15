@@ -293,15 +293,75 @@ def main():
                     markdown_output += f"- **{tag}**\n"
                 markdown_output += "\n"
 
-        # --- Repo tags changes ---
-        repo_tags_changes = {}
-        for repo, tags in current_snapshot["repo_tags"].items():
-            parent_tags = parent_snapshot["repo_tags"].get(repo, [])
-            added = set(tags) - set(parent_tags)
-            if added:
-                repo_tags_changes[repo] = list(added)
-        if repo_tags_changes:
-            markdown_output += summarize_repo_section("Repo Tags", repo_tags_changes)
+        # --- Repository tag changes ---
+        all_repos = sorted(set(current_repos))  # Sort repos alphabetically
+        for repo_id in all_repos:
+            if repo_id in new_repos:
+                # Skip brand new repos; no historical data to compare
+                continue
+
+            current_tags_raw = read_tracking_file(
+                commit_hash, f"repos/{repo_id}/tags-manifest.json"
+            )
+            parent_tags_raw = read_tracking_file(
+                parent_hash, f"repos/{repo_id}/tags-manifest.json"
+            )
+
+            try:
+                current_tags = json.loads(current_tags_raw) if current_tags_raw else {}
+            except json.JSONDecodeError:
+                current_tags = {}
+
+            try:
+                parent_tags = json.loads(parent_tags_raw) if parent_tags_raw else {}
+            except json.JSONDecodeError:
+                parent_tags = {}
+
+            # --- Detect tag differences ---
+            new_tags = []
+            changed_tags = []
+            removed_tags = []
+
+            # Detect new and changed tags
+            for tag_name, tag_data in current_tags.items():
+                if tag_name not in parent_tags:
+                    new_tags.append(tag_name)
+                else:
+                    parent_commit = parent_tags[tag_name].get("latest_commit")
+                    current_commit = tag_data.get("latest_commit")
+                    if parent_commit != current_commit:
+                        changed_tags.append(tag_name)
+
+            # Detect removed tags
+            for tag_name in parent_tags.keys():
+                if tag_name not in current_tags:
+                    removed_tags.append(tag_name)
+
+            # --- Output if there are differences ---
+            if new_tags or changed_tags or removed_tags:
+                markdown_output += f"### 🏷️ Tag Changes in **{repo_id}**\n\n"
+
+                if new_tags:
+                    markdown_output += "#### 🆕 New Tags\n\n"
+                    for tag in new_tags:
+                        tag_commit = current_tags[tag].get("latest_commit", "unknown")
+                        markdown_output += f"- **{tag}** → `{tag_commit}`\n"
+                    markdown_output += "\n"
+
+                if changed_tags:
+                    markdown_output += "#### 🔄 Updated Tags\n\n"
+                    for tag in changed_tags:
+                        parent_commit = parent_tags[tag].get("latest_commit", "unknown")
+                        current_commit = current_tags[tag].get("latest_commit", "unknown")
+                        markdown_output += f"- **{tag}** changed from `{parent_commit}` → `{current_commit}`\n"
+                    markdown_output += "\n"
+
+                if removed_tags:
+                    markdown_output += "#### 🗑️ Removed Tags\n\n"
+                    for tag in removed_tags:
+                        parent_commit = parent_tags[tag].get("latest_commit", "unknown")
+                        markdown_output += f"- **{tag}** (was `{parent_commit}`)\n"
+                    markdown_output += "\n"
 
         # --- Repo branches changes ---
         repo_branches_changes = {}
