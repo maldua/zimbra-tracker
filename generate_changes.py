@@ -216,6 +216,12 @@ def main():
             markdown_output += f"## (First) Snapshot {commit_time}\n\nIgnored on purpose.\n\n"
             continue
 
+        # Handle regular snapshot
+        commit_time = run_cmd(
+            ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
+        )
+        markdown_output += f"## Snapshot {commit_time}\n\n"
+
         # Load current and parent snapshots
         current_snapshot = {
             "global_tags": yaml.safe_load(read_tracking_file(commit_hash, "all-tags.yaml") or "[]"),
