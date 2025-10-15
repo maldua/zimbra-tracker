@@ -158,19 +158,35 @@ def has_changes(repo_dir):
     )
     return bool(result.stdout.strip())
 
-def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_file_path, prefix=""):
+def format_commit(commit, repo_id, prefix=""):
     """
-    Append the last 5 commits of a tag or branch to markdown_output with an optional prefix.
+    Format a single commit into markdown.
 
     Args:
-        commit_hash (str): Current commit hash
-        markdown_output (str): Current markdown content
-        repo_id (str): Repository name
-        ref_name (str): Tag or branch name
-        ref_file_path (str): Path to JSON-per-line file in tracking commit
-        prefix (str): Optional prefix for each commit, e.g., 'NEW', 'REMOVED', or ''
+        commit (dict): Commit dictionary containing commit, timestamp, author, committer, message
+        repo_id (str): Repository name for GitHub URLs
+        prefix (str): Optional prefix like 'NEW' or 'REMOVED'
+
     Returns:
-        str: Updated markdown_output
+        str: Markdown string representing the commit
+    """
+    chash = commit.get("commit", "unknown")[:12]
+    msg = commit.get("message", "_(no message)_")
+    author = commit.get("author", "Unknown")
+    committer = commit.get("committer", "Unknown")
+    ts = commit.get("timestamp", 0)
+    dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
+    github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
+
+    prefix_str = f"**{prefix}** " if prefix else ""
+    return (
+        f"    - {prefix_str}{dt} | **[{chash}]({github_url})** [{msg}]({github_url}) "
+        f"| authored by *{author}* | committed by *{committer}*\n"
+    )
+
+def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_file_path, prefix=""):
+    """
+    Append the last 5 commits of a tag or branch to markdown_output using format_commit.
     """
     file_content = read_tracking_file(commit_hash, ref_file_path)
     if not file_content:
@@ -189,19 +205,7 @@ def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_f
     last_commits = commits_json[-5:][::-1]  # newest first
 
     for commit in last_commits:
-        chash = commit.get("commit", "unknown")[:12]
-        msg = commit.get("message", "_(no message)_")
-        author = commit.get("author", "Unknown")
-        committer = commit.get("committer", "Unknown")
-        ts = commit.get("timestamp", 0)
-        dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
-        github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
-
-        prefix_str = f"{prefix}: " if prefix else ""
-        markdown_output += (
-            f"    - {prefix_str}{dt} | **[{chash}]({github_url})** [{msg}]({github_url}) "
-            f"| authored by *{author}* | committed by *{committer}*\n"
-        )
+        markdown_output += format_commit(commit, repo_id, prefix=prefix)
 
     markdown_output += "\n"
     return markdown_output
