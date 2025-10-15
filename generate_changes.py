@@ -158,6 +158,50 @@ def has_changes(repo_dir):
     )
     return bool(result.stdout.strip())
 
+def format_recent_commits(markdown_output, repo_id, ref_name, ref_file_path):
+    """
+    Append the last 5 commits of a tag or branch to markdown_output.
+
+    Args:
+        markdown_output (str): Current markdown content
+        repo_id (str): Repository name
+        ref_name (str): Tag or branch name
+        ref_file_path (str): Path to JSON-per-line file in tracking commit
+    Returns:
+        str: Updated markdown_output
+    """
+    file_content = read_tracking_file(commit_hash, ref_file_path)
+    if not file_content:
+        return markdown_output
+
+    commits_json = []
+    for line in file_content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            commits_json.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    last_commits = commits_json[-5:][::-1]  # newest first
+
+    for commit in last_commits:
+        chash = commit.get("commit", "unknown")[:12]
+        msg = commit.get("message", "_(no message)_")
+        author = commit.get("author", "Unknown")
+        committer = commit.get("committer", "Unknown")
+        ts = commit.get("timestamp", 0)
+        dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
+        github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
+
+        markdown_output += (
+            f"    - {dt} | **[{chash}]({github_url})** [{msg}]({github_url}) | authored by *{author}* | committed by *{committer}*\n"
+        )
+
+    markdown_output += "\n"
+    return markdown_output
+
 # --- Main logic ---
 def main():
     print("🔍 Generating Markdown changes timeline...")
@@ -345,45 +389,12 @@ def main():
                 if new_tags:
                     markdown_output += "#### 🆕 New Tags\n\n"
                     for tag in new_tags:
-                        tag_commit = current_tags[tag].get("latest_commit", "unknown")
+                        markdown_output += f"- **[{ref_name}](https://github.com/Zimbra/{repo_id}/releases/tag/{ref_name})** | [Commits](https://github.com/Zimbra/{repo_id}/commits/{ref_name}/) | Recent commits 👇\n"
                         tag_file = current_tags[tag].get("file")
-                        # TODO: Do not hard code the organization name and read it from another place
-                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag}) | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/) | Recent commits 👇\n"
-
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
-                            tag_file_content = read_tracking_file(commit_hash, tag_file_path)
-
-                            if tag_file_content:
-                                # Parse each line as JSON
-                                commits_json = []
-                                for line in tag_file_content.splitlines():
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    try:
-                                        commits_json.append(json.loads(line))
-                                    except json.JSONDecodeError:
-                                        continue
-
-                                # Take last 5 commits (newest first)
-                                last_commits = commits_json[-5:][::-1]
-
-                                for commit in last_commits:
-                                    chash = commit.get("commit", "unknown")[:12]
-                                    msg = commit.get("message", "_(no message)_")
-                                    author = commit.get("author", "Unknown")
-                                    committer = commit.get("committer", "Unknown")
-                                    ts = commit.get("timestamp", 0)
-                                    dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-                                    github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
-
-                                    markdown_output += (
-                                        f"    - {dt} | **[({chash})]({github_url})** [{msg}]({github_url}) | authored by *{author}* | committed by *{committer}*\n\n"
-                                    )
-
-                                markdown_output += "\n"
+                            markdown_output = format_recent_commits(markdown_output, repo_id, tag, tag_file_path)
+                    markdown_output += "\n"
 
                     markdown_output += "\n"
 
