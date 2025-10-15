@@ -178,9 +178,9 @@ def format_commit(commit, repo_id, prefix=""):
     dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
     github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
 
-    prefix_str = f"**{prefix}** " if prefix else ""
+    prefix_str = f"**{prefix}**" if prefix else "_"
     return (
-        f"    - {prefix_str}{dt} | **[{chash}]({github_url})** [{msg}]({github_url}) "
+        f"    - {dt} | {prefix_str} | **[{chash}]({github_url})** [{msg}]({github_url}) "
         f"| authored by *{author}* | committed by *{committer}*\n"
     )
 
@@ -452,7 +452,7 @@ def main():
                         # --- Output last 5 commits, label NEW if not in parent ---
                         markdown_output += "  - Last 5 commits:\n"
                         for commit in current_commits:
-                            prefix = "NEW" if commit.get("commit") not in parent_hashes else ""
+                            prefix = "N" if commit.get("commit") not in parent_hashes else ""
                             markdown_output += format_commit(commit, repo_id, prefix=prefix)
 
                         markdown_output += "\n"
