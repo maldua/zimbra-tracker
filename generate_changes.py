@@ -183,22 +183,38 @@ def main():
 
     # Traverse commits **newest to oldest** to produce snapshots
     for commit_hash in reversed(tracking_commits):
+
         # Get parent commits
         parents_line = run_cmd(
-            ["git", "rev-list", "--parents", "-n", "1", commit_hash], cwd=TRACKING_WORKTREE_DIR
+            ["git", "rev-list", "--parents", "-n", "1", commit_hash],
+            cwd=TRACKING_WORKTREE_DIR
         ).split()
         commit_parents = parents_line[1:]  # skip the commit itself
 
-        # Skip root commits (no parent)
+        # Handle the "very first commit" (no parents at all)
         if not commit_parents:
+            commit_time = run_cmd(
+                ["git", "show", "-s", "--format=%ci", commit_hash],
+                cwd=TRACKING_WORKTREE_DIR
+            ).strip()
+            markdown_output += f"## Very first commit ({commit_time})\n\nIgnored on purpose.\n\n"
             continue
 
+        # Handle the case where parent’s parent does not exist (branch root)
         parent_hash = commit_parents[0]
+        parent_parents_line = run_cmd(
+            ["git", "rev-list", "--parents", "-n", "1", parent_hash],
+            cwd=TRACKING_WORKTREE_DIR
+        ).split()
+        parent_parents = parent_parents_line[1:] if len(parent_parents_line) > 1 else []
 
-        commit_time = run_cmd(
-            ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
-        )
-        markdown_output += f"## Snapshot {commit_time}\n\n"
+        if not parent_parents:
+            commit_time = run_cmd(
+                ["git", "show", "-s", "--format=%ci", commit_hash],
+                cwd=TRACKING_WORKTREE_DIR
+            ).strip()
+            markdown_output += f"## (First) Snapshot {commit_time}\n\nIgnored on purpose.\n\n"
+            continue
 
         # Load current and parent snapshots
         current_snapshot = {
