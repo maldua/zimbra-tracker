@@ -142,7 +142,14 @@ def export_ref_commits(repo_path, ref_name, file_path, manifest):
             }
             f.write(json.dumps(commit_json, ensure_ascii=False) + "\n")
 
-    manifest[ref_name] = os.path.basename(file_path)
+    if commit_lines:
+        latest_commit = commit_lines[-1].split()[0]  # last commit hash in log
+    else:
+        latest_commit = None
+    manifest[ref_name] = {
+        "file": safe_refname_to_filename(ref_name),
+        "latest_commit": latest_commit
+    }
     print(f"Exported {len(commit_lines)} commits for {ref_name}")
 
 def export_branch_commits(repo_path, repo_id, branch_name, manifest):
