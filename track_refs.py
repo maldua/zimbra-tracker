@@ -113,25 +113,38 @@ def write_commit_list(filepath, commits):
 def export_ref_commits(repo_path, ref_name, file_path, manifest):
     """
     Export all commits reachable from a given ref (branch or tag),
-    write them to the given file_path, and update the manifest.
-    Returns the list of commit lines.
+    write them as one JSON object per line, and update the manifest.
+    Each JSON object contains: commit, timestamp, author, committer, message.
     """
+    sep = "\x1f"  # Unit Separator (rarely appears in commit messages)
+    git_format = f"%H{sep}%ct{sep}%an{sep}%cn{sep}%s"
+
     commit_lines = run(
-        ["git", "log", "--reverse", "--pretty=format:%H %s", ref_name],
+        ["git", "log", "--reverse", f"--pretty=format:{git_format}", ref_name],
         cwd=repo_path
     ).splitlines()
 
-    write_commit_list(file_path, commit_lines)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-    if commit_lines:
-        latest_commit = commit_lines[-1].split()[0]  # last commit hash in log
-    else:
-        latest_commit = None
-    manifest[ref_name] = {
-        "file": safe_refname_to_filename(ref_name),
-        "latest_commit": latest_commit
-    }
+    with open(file_path, "w", encoding="utf-8") as f:
+        for line in commit_lines:
+            parts = line.split(sep, 4)
+            if len(parts) < 5:
+                continue  # skip malformed lines
+            commit_hash, timestamp, author, committer, message = parts
+            author = author.replace(" ", "_") if author else "Unknown"
+            committer = committer.replace(" ", "_") if committer else "Unknown"
 
+            commit_json = {
+                "commit": commit_hash,
+                "timestamp": int(timestamp),
+                "author": author,
+                "committer": committer,
+                "message": message
+            }
+            f.write(json.dumps(commit_json, ensure_ascii=False) + "\n")
+
+    manifest[ref_name] = os.path.basename(file_path)
     print(f"Exported {len(commit_lines)} commits for {ref_name}")
 
 def export_branch_commits(repo_path, repo_id, branch_name, manifest):
