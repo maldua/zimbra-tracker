@@ -347,7 +347,8 @@ def main():
                     for tag in new_tags:
                         tag_commit = current_tags[tag].get("latest_commit", "unknown")
                         tag_file = current_tags[tag].get("file")
-                        markdown_output += f"- **{tag}** → `{tag_commit}`\n"
+                        # TODO: Do not hard code the organization name and read it from another place
+                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | **[Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/) | Recent commits 👇\n"
 
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
@@ -358,13 +359,12 @@ def main():
                                 lines = [l.strip() for l in tag_file_content.splitlines() if l.strip()]
                                 if lines:
                                     last_commits = lines[-5:][::-1]  # reverse to newest first
-                                    markdown_output += "  - Recent commits:\n"
                                     for line in last_commits:
                                         # Each line looks like "<hash> <message>"
                                         parts = line.split(" ", 1)
                                         commit_hash_part = parts[0]
                                         message = parts[1] if len(parts) > 1 else ""
-                                        markdown_output += f"    - `{commit_hash_part}` {message}\n"
+                                        markdown_output += f"  - `{commit_hash_part}` {message}\n"
                                     markdown_output += "\n"
 
                     markdown_output += "\n"
