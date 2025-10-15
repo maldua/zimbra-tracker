@@ -103,13 +103,6 @@ def ensure_repo_cloned(repo_id, clone_url):
         subprocess.run(["git", "fetch", "--all"], cwd=path, check=True)
     return path
 
-def write_commit_list(filepath, commits):
-    """Write commits (list of strings) to file"""
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        for line in commits:
-            f.write(line + "\n")
-
 def export_ref_commits(repo_path, ref_name, file_path, manifest):
     """
     Export all commits reachable from a given ref (branch or tag),
