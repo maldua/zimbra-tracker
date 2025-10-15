@@ -137,8 +137,8 @@ def export_ref_commits(repo_path, ref_name, file_path, manifest):
             if len(parts) < 5:
                 continue  # skip malformed lines
             commit_hash, timestamp, author, committer, message = parts
-            author = if author else "Unknown"
-            committer = if committer else "Unknown"
+            author = author if author else "Unknown"
+            committer = committer if committer else "Unknown"
 
             commit_json = {
                 "commit": commit_hash,
