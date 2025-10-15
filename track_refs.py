@@ -117,6 +117,11 @@ def export_ref_commits(repo_path, ref_name, file_path, manifest):
     Each JSON object contains: commit, timestamp, author, committer, message.
     """
     sep = "\x1f"  # Unit Separator (rarely appears in commit messages)
+    #   %H  - commit hash (full 40-character SHA1)
+    #   %ct - commit timestamp (UNIX epoch time)
+    #   %an - author name
+    #   %cn - committer name
+    #   %s  - commit subject (the commit message's first line)
     git_format = f"%H{sep}%ct{sep}%an{sep}%cn{sep}%s"
 
     commit_lines = run(
@@ -132,8 +137,8 @@ def export_ref_commits(repo_path, ref_name, file_path, manifest):
             if len(parts) < 5:
                 continue  # skip malformed lines
             commit_hash, timestamp, author, committer, message = parts
-            author = author.replace(" ", "_") if author else "Unknown"
-            committer = committer.replace(" ", "_") if committer else "Unknown"
+            author = if author else "Unknown"
+            committer = if committer else "Unknown"
 
             commit_json = {
                 "commit": commit_hash,
