@@ -150,14 +150,14 @@ def generate_manifest(manifest, repo_id, filename):
     print(f"Generated {filename} for {repo_id}")
 
 def write_all_tags_manifest(all_tags):
-    # Save all_tags.txt (just tag names, sorted)
-    all_tags_txt_path = os.path.join(TRACKING_WORKTREE_DIR, "all_tags.txt")
+    # Save all-tags.txt (just tag names, sorted)
+    all_tags_txt_path = os.path.join(TRACKING_WORKTREE_DIR, "all-tags.txt")
     with open(all_tags_txt_path, "w", encoding="utf-8") as f:
         for tag_name in sorted(all_tags.keys()):
             f.write(tag_name + "\n")
 
-    # Save all_tags.json (tag names with associated repos)
-    all_tags_json_path = os.path.join(TRACKING_WORKTREE_DIR, "all_tags.json")
+    # Save all-tags.json (tag names with associated repos)
+    all_tags_json_path = os.path.join(TRACKING_WORKTREE_DIR, "all-tags.json")
     # convert sets to lists for JSON serialization
     json_serializable = {tag: list(repos) for tag, repos in all_tags.items()}
     with open(all_tags_json_path, "w", encoding="utf-8") as f:
