@@ -359,12 +359,17 @@ def main():
                                 lines = [l.strip() for l in tag_file_content.splitlines() if l.strip()]
                                 if lines:
                                     last_commits = lines[-5:][::-1]  # reverse to newest first
+                                    markdown_output += "  - Recent commits:\n\n"
                                     for line in last_commits:
-                                        # Each line looks like "<hash> <message>"
                                         parts = line.split(" ", 1)
                                         commit_hash_part = parts[0]
-                                        message = parts[1] if len(parts) > 1 else ""
-                                        markdown_output += f"    - `{commit_hash_part}` {message}\n"
+                                        message = parts[1].strip() if len(parts) > 1 else "_(no message)_"
+
+                                        short_hash = commit_hash_part[:12]
+                                        # Placeholder: in the future we can derive repo URL dynamically
+                                        github_url = f"https://github.com/zimbra/{repo_id}/commit/{commit_hash_part}"
+
+                                        markdown_output += f"    - **[{message}]({github_url})** [`{short_hash}`]({github_url})\n\n"
                                     markdown_output += "\n"
 
                     markdown_output += "\n"
