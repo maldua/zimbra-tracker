@@ -158,9 +158,9 @@ def has_changes(repo_dir):
     )
     return bool(result.stdout.strip())
 
-def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_file_path):
+def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_file_path, prefix=""):
     """
-    Append the last 5 commits of a tag or branch to markdown_output.
+    Append the last 5 commits of a tag or branch to markdown_output with an optional prefix.
 
     Args:
         commit_hash (str): Current commit hash
@@ -168,6 +168,7 @@ def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_f
         repo_id (str): Repository name
         ref_name (str): Tag or branch name
         ref_file_path (str): Path to JSON-per-line file in tracking commit
+        prefix (str): Optional prefix for each commit, e.g., 'NEW', 'REMOVED', or ''
     Returns:
         str: Updated markdown_output
     """
@@ -196,8 +197,10 @@ def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_f
         dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
         github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
 
+        prefix_str = f"{prefix}: " if prefix else ""
         markdown_output += (
-            f"    - {dt} | **[{chash}]({github_url})** [{msg}]({github_url}) | authored by *{author}* | committed by *{committer}*\n"
+            f"    - {prefix_str}{dt} | **[{chash}]({github_url})** [{msg}]({github_url}) "
+            f"| authored by *{author}* | committed by *{committer}*\n"
         )
 
     markdown_output += "\n"
