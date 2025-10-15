@@ -103,27 +103,53 @@ def ensure_repo_cloned(repo_id, clone_url):
         subprocess.run(["git", "fetch", "--all"], cwd=path, check=True)
     return path
 
-def write_commit_list(filepath, commits):
-    """Write commits (list of strings) to file"""
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        for line in commits:
-            f.write(line + "\n")
-
 def export_ref_commits(repo_path, ref_name, file_path, manifest):
     """
     Export all commits reachable from a given ref (branch or tag),
-    write them to the given file_path, and update the manifest.
-    Returns the list of commit lines.
+    write them as one JSON object per line, and update the manifest.
+    Each JSON object contains: commit, timestamp, author, committer, message.
     """
+    sep = "\x1f"  # Unit Separator (rarely appears in commit messages)
+    #   %H  - commit hash (full 40-character SHA1)
+    #   %ct - commit timestamp (UNIX epoch time)
+    #   %an - author name
+    #   %cn - committer name
+    #   %s  - commit subject (the commit message's first line)
+    git_format = f"%H{sep}%ct{sep}%an{sep}%cn{sep}%s"
+
     commit_lines = run(
-        ["git", "log", "--reverse", "--pretty=format:%H %s", ref_name],
+        ["git", "log", "--reverse", f"--pretty=format:{git_format}", ref_name],
         cwd=repo_path
     ).splitlines()
 
-    write_commit_list(file_path, commit_lines)
-    manifest[ref_name] = safe_refname_to_filename(ref_name)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
+    with open(file_path, "w", encoding="utf-8") as f:
+        for line in commit_lines:
+            parts = line.split(sep, 4)
+            if len(parts) < 5:
+                continue  # skip malformed lines
+            commit_hash, timestamp, author, committer, message = parts
+            author = author if author else "Unknown"
+            committer = committer if committer else "Unknown"
+
+            commit_json = {
+                "commit": commit_hash,
+                "timestamp": int(timestamp),
+                "author": author,
+                "committer": committer,
+                "message": message
+            }
+            f.write(json.dumps(commit_json, ensure_ascii=False) + "\n")
+
+    if commit_lines:
+        latest_commit = commit_lines[-1].split()[0]  # last commit hash in log
+    else:
+        latest_commit = None
+    manifest[ref_name] = {
+        "file": safe_refname_to_filename(ref_name),
+        "latest_commit": latest_commit
+    }
     print(f"Exported {len(commit_lines)} commits for {ref_name}")
 
 def export_branch_commits(repo_path, repo_id, branch_name, manifest):
@@ -150,18 +176,26 @@ def generate_manifest(manifest, repo_id, filename):
     print(f"Generated {filename} for {repo_id}")
 
 def write_all_tags_manifest(all_tags):
-    # Save all_tags.txt (just tag names, sorted)
-    all_tags_txt_path = os.path.join(TRACKING_WORKTREE_DIR, "all_tags.txt")
+    # Save all-tags.txt (just tag names, sorted)
+    all_tags_txt_path = os.path.join(TRACKING_WORKTREE_DIR, "all-tags.txt")
     with open(all_tags_txt_path, "w", encoding="utf-8") as f:
         for tag_name in sorted(all_tags.keys()):
             f.write(tag_name + "\n")
 
-    # Save all_tags.json (tag names with associated repos)
-    all_tags_json_path = os.path.join(TRACKING_WORKTREE_DIR, "all_tags.json")
+    # Save all-tags.json (tag names with associated repos)
+    all_tags_json_path = os.path.join(TRACKING_WORKTREE_DIR, "all-tags.json")
     # convert sets to lists for JSON serialization
     json_serializable = {tag: list(repos) for tag, repos in all_tags.items()}
     with open(all_tags_json_path, "w", encoding="utf-8") as f:
         json.dump(json_serializable, f, indent=2, sort_keys=True)
+
+def write_all_repos_manifest(repos):
+    """Save list of all tracked repo_ids into all-repos.json"""
+    all_projects_path = os.path.join(TRACKING_WORKTREE_DIR, "all-repos.json")
+    repo_ids = [repo_id for repo_id, _ in repos]
+    with open(all_projects_path, "w", encoding="utf-8") as f:
+        json.dump(sorted(repo_ids), f, indent=2)
+    print(f"Generated all-repos.json with {len(repo_ids)} repos")
 
 def has_changes():
     """Return True if there are untracked or modified files."""
@@ -200,6 +234,9 @@ def main():
         # Write manifests separately
         generate_manifest(branches_manifest, repo_id, "branches-manifest.json")
         generate_manifest(tags_manifest, repo_id, "tags-manifest.json")
+
+    # Write all tracked repo IDs
+    write_all_repos_manifest(repos)
 
     # Write global tags manifest
     write_all_tags_manifest(all_tags)
