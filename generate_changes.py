@@ -201,13 +201,13 @@ def main():
 
         # Load current and parent snapshots
         current_snapshot = {
-            "global_tags": yaml.safe_load(read_tracking_file(commit_hash, "all_tags.yaml") or "[]"),
+            "global_tags": yaml.safe_load(read_tracking_file(commit_hash, "all-tags.yaml") or "[]"),
             "repo_tags": yaml.safe_load(read_tracking_file(commit_hash, "repo_tags.yaml") or "{}"),
             "repo_branches": yaml.safe_load(read_tracking_file(commit_hash, "repo_branches.yaml") or "{}"),
         }
 
         parent_snapshot = {
-            "global_tags": yaml.safe_load(read_tracking_file(parent_hash, "all_tags.yaml") or "[]"),
+            "global_tags": yaml.safe_load(read_tracking_file(parent_hash, "all-tags.yaml") or "[]"),
             "repo_tags": yaml.safe_load(read_tracking_file(parent_hash, "repo_tags.yaml") or "{}"),
             "repo_branches": yaml.safe_load(read_tracking_file(parent_hash, "repo_branches.yaml") or "{}"),
         }
