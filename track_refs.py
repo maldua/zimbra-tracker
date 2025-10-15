@@ -122,7 +122,15 @@ def export_ref_commits(repo_path, ref_name, file_path, manifest):
     ).splitlines()
 
     write_commit_list(file_path, commit_lines)
-    manifest[ref_name] = safe_refname_to_filename(ref_name)
+
+    if commit_lines:
+        latest_commit = commit_lines[-1].split()[0]  # last commit hash in log
+    else:
+        latest_commit = None
+    manifest[ref_name] = {
+        "file": safe_refname_to_filename(ref_name),
+        "latest_commit": latest_commit
+    }
 
     print(f"Exported {len(commit_lines)} commits for {ref_name}")
 
