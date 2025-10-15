@@ -246,16 +246,30 @@ def main():
                     markdown_output += f"- **{repo_id}**\n"
                 markdown_output += "\n"
 
-        # --- Global tags changes ---
-        new_global_tags = set(current_snapshot["global_tags"]) - set(parent_snapshot["global_tags"])
-        removed_global_tags = set(parent_snapshot["global_tags"]) - set(current_snapshot["global_tags"])
+        # --- Global tags changes (based on all-tags.txt) ---
+        current_tags_raw = read_tracking_file(commit_hash, "all-tags.txt")
+        parent_tags_raw = read_tracking_file(parent_hash, "all-tags.txt")
+
+        current_tags = [t.strip() for t in current_tags_raw.splitlines() if t.strip()] if current_tags_raw else []
+        parent_tags = [t.strip() for t in parent_tags_raw.splitlines() if t.strip()] if parent_tags_raw else []
+
+        new_global_tags = sorted(set(current_tags) - set(parent_tags))
+        removed_global_tags = sorted(set(parent_tags) - set(current_tags))
+
         if new_global_tags or removed_global_tags:
-            global_tags_changes = {}
+            markdown_output += "### 🏷️ Global Tags Changes\n\n"
+
             if new_global_tags:
-                global_tags_changes.update({tag: [] for tag in new_global_tags})
+                markdown_output += "#### 🆕 New Global Tags\n\n"
+                for tag in new_global_tags:
+                    markdown_output += f"- **{tag}**\n"
+                markdown_output += "\n"
+
             if removed_global_tags:
-                global_tags_changes.update({f"{tag} (removed)": [] for tag in removed_global_tags})
-            markdown_output += summarize_repo_section("Global Tags", global_tags_changes)
+                markdown_output += "#### 🗑️ Removed Global Tags\n\n"
+                for tag in removed_global_tags:
+                    markdown_output += f"- **{tag}**\n"
+                markdown_output += "\n"
 
         # --- Repo tags changes ---
         repo_tags_changes = {}
