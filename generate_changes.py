@@ -158,11 +158,12 @@ def has_changes(repo_dir):
     )
     return bool(result.stdout.strip())
 
-def format_recent_commits(markdown_output, repo_id, ref_name, ref_file_path):
+def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_file_path):
     """
     Append the last 5 commits of a tag or branch to markdown_output.
 
     Args:
+        commit_hash (str): Current commit hash
         markdown_output (str): Current markdown content
         repo_id (str): Repository name
         ref_name (str): Tag or branch name
@@ -393,7 +394,7 @@ def main():
                         tag_file = current_tags[tag].get("file")
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
-                            markdown_output = format_recent_commits(markdown_output, repo_id, tag, tag_file_path)
+                            markdown_output = format_recent_commits(commit_hash, markdown_output, repo_id, tag, tag_file_path)
                     markdown_output += "\n"
 
                     markdown_output += "\n"
