@@ -397,7 +397,7 @@ def main():
                 if new_tags:
                     markdown_output += "#### 🆕 New Tags\n\n"
                     for tag in new_tags:
-                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/) | Recent commits 👇\n"
+                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag}) | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/)| Recent commits 👇\n"
                         tag_file = current_tags[tag].get("file")
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
