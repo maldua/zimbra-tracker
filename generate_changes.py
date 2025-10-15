@@ -21,6 +21,7 @@ from datetime import datetime
 from subprocess import run, PIPE
 from pathlib import Path
 import subprocess
+import json
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -211,6 +212,39 @@ def main():
             "repo_tags": yaml.safe_load(read_tracking_file(parent_hash, "repo_tags.yaml") or "{}"),
             "repo_branches": yaml.safe_load(read_tracking_file(parent_hash, "repo_branches.yaml") or "{}"),
         }
+
+        # --- Repository detection (based on all-repos.json) ---
+        current_repos_raw = read_tracking_file(commit_hash, "all-repos.json")
+        parent_repos_raw = read_tracking_file(parent_hash, "all-repos.json")
+
+        try:
+            current_repos = json.loads(current_repos_raw) if current_repos_raw else []
+        except json.JSONDecodeError:
+            current_repos = []
+        try:
+            parent_repos = json.loads(parent_repos_raw) if parent_repos_raw else []
+        except json.JSONDecodeError:
+            parent_repos = []
+
+        new_repos = sorted(set(current_repos) - set(parent_repos))
+        removed_repos = sorted(set(parent_repos) - set(current_repos))
+
+        if new_repos or removed_repos:
+            markdown_output += "## 🧭 Repository Changes\n\n"
+
+            if new_repos:
+                markdown_output += "### 🆕 New Repositories Detected\n\n"
+                for repo_id in new_repos:
+                    markdown_output += (
+                        f"- **{repo_id}** — Branches and Tags changes will only be shown in future snapshots.\n"
+                    )
+                markdown_output += "\n"
+
+            if removed_repos:
+                markdown_output += "### 🗑️ Repositories Removed\n\n"
+                for repo_id in removed_repos:
+                    markdown_output += f"- **{repo_id}**\n"
+                markdown_output += "\n"
 
         # --- Global tags changes ---
         new_global_tags = set(current_snapshot["global_tags"]) - set(parent_snapshot["global_tags"])
