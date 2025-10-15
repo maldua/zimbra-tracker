@@ -380,8 +380,7 @@ def main():
                                     github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
 
                                     markdown_output += (
-                                        f"    - **[({chash})]({github_url})** [{msg}]({github_url})\n\n"
-                                        f"      {dt} | authored by `{author}` | committed by `{committer}` | {dt}\n\n"
+                                        f"    - {dt} | **[({chash})]({github_url})** [{msg}]({github_url}) | authored by `{author}` | committed by `{committer}`\n\n"
                                     )
 
                                 markdown_output += "\n"
