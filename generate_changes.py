@@ -397,7 +397,7 @@ def main():
                         tag_file = current_tags[tag].get("file")
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
-                            markdown_output = format_recent_commits(commit_hash, markdown_output, repo_id, tag, tag_file_path)
+                            markdown_output = format_recent_commits("", commit_hash, markdown_output, repo_id, tag, tag_file_path)
                     markdown_output += "\n"
 
                     markdown_output += "\n"
