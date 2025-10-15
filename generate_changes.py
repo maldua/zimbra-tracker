@@ -364,7 +364,7 @@ def main():
                                         parts = line.split(" ", 1)
                                         commit_hash_part = parts[0]
                                         message = parts[1] if len(parts) > 1 else ""
-                                        markdown_output += f"  - `{commit_hash_part}` {message}\n"
+                                        markdown_output += f"    - `{commit_hash_part}` {message}\n"
                                     markdown_output += "\n"
 
                     markdown_output += "\n"
