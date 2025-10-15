@@ -348,7 +348,7 @@ def main():
                         tag_commit = current_tags[tag].get("latest_commit", "unknown")
                         tag_file = current_tags[tag].get("file")
                         # TODO: Do not hard code the organization name and read it from another place
-                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | **[Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/) | Recent commits 👇\n"
+                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag}) | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/) | Recent commits 👇\n"
 
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
