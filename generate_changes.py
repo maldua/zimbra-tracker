@@ -369,7 +369,6 @@ def main():
                                 # Take last 5 commits (newest first)
                                 last_commits = commits_json[-5:][::-1]
 
-                                markdown_output += "  - Recent commits:\n\n"
                                 for commit in last_commits:
                                     chash = commit.get("commit", "unknown")[:12]
                                     msg = commit.get("message", "_(no message)_")
@@ -381,8 +380,8 @@ def main():
                                     github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
 
                                     markdown_output += (
-                                        f"    - **[{msg}]({github_url})**\n"
-                                        f"      - `{chash}` | authored by `{author}` | committed by `{committer}` | {dt}\n\n"
+                                        f"    - **[({chash})]({github_url})** [{msg}]({github_url})\n\n"
+                                        f"      {dt} | authored by `{author}` | committed by `{committer}` | {dt}\n\n"
                                     )
 
                                 markdown_output += "\n"
