@@ -412,7 +412,7 @@ def main():
                     for tag in changed_tags:
                         parent_commit_hash = parent_tags[tag].get("latest_commit")
                         current_commit_hash = current_tags[tag].get("latest_commit")
-                        markdown_output += f"- **{tag}** changed from `{parent_commit_hash}` → `{current_commit_hash}`\n"
+                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag}) | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/)| [Previous tag target]({parent_commit_hash}) | Recent commits 👇\n"
 
                         # --- Load last 5 parent commits ---
                         parent_tag_file = parent_tags[tag].get("file")
@@ -450,7 +450,6 @@ def main():
                                 current_commits = current_commits[-5:][::-1]  # newest first
 
                         # --- Output last 5 commits, label NEW if not in parent ---
-                        markdown_output += "  - Last 5 commits:\n"
                         for commit in current_commits:
                             prefix = "N" if commit.get("commit") not in parent_hashes else ""
                             markdown_output += format_commit(commit, repo_id, prefix=prefix)
