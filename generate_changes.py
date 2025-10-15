@@ -369,7 +369,7 @@ def main():
                                         # Placeholder: in the future we can derive repo URL dynamically
                                         github_url = f"https://github.com/zimbra/{repo_id}/commit/{commit_hash_part}"
 
-                                        markdown_output += f"    - **[{message}]({github_url})** [`{short_hash}`]({github_url})\n\n"
+                                        markdown_output += f"    - **[({short_hash})]({github_url})** [{message}]({github_url})\n\n"
                                     markdown_output += "\n"
 
                     markdown_output += "\n"
