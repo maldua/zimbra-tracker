@@ -341,13 +341,35 @@ def main():
             if new_tags or changed_tags or removed_tags:
                 markdown_output += f"### 🏷️ Tag Changes in **{repo_id}**\n\n"
 
+                # 🆕 New Tags with latest commits
                 if new_tags:
                     markdown_output += "#### 🆕 New Tags\n\n"
                     for tag in new_tags:
                         tag_commit = current_tags[tag].get("latest_commit", "unknown")
+                        tag_file = current_tags[tag].get("file")
                         markdown_output += f"- **{tag}** → `{tag_commit}`\n"
+
+                        if tag_file:
+                            tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
+                            tag_file_content = read_tracking_file(commit_hash, tag_file_path)
+
+                            if tag_file_content:
+                                # Split, filter out empty lines, and take last 5 non-empty
+                                lines = [l.strip() for l in tag_file_content.splitlines() if l.strip()]
+                                if lines:
+                                    last_commits = lines[-5:][::-1]  # reverse to newest first
+                                    markdown_output += "  - Recent commits:\n"
+                                    for line in last_commits:
+                                        # Each line looks like "<hash> <message>"
+                                        parts = line.split(" ", 1)
+                                        commit_hash_part = parts[0]
+                                        message = parts[1] if len(parts) > 1 else ""
+                                        markdown_output += f"    - `{commit_hash_part}` {message}\n"
+                                    markdown_output += "\n"
+
                     markdown_output += "\n"
 
+                # 🔄 Updated Tags
                 if changed_tags:
                     markdown_output += "#### 🔄 Updated Tags\n\n"
                     for tag in changed_tags:
@@ -356,6 +378,7 @@ def main():
                         markdown_output += f"- **{tag}** changed from `{parent_commit}` → `{current_commit}`\n"
                     markdown_output += "\n"
 
+                # 🗑️ Removed Tags
                 if removed_tags:
                     markdown_output += "#### 🗑️ Removed Tags\n\n"
                     for tag in removed_tags:
