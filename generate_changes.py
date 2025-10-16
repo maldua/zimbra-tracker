@@ -449,9 +449,18 @@ def main():
                                         continue
                                 current_commits = current_commits[-5:][::-1]  # newest first
 
-                        # --- Output last 5 commits, label NEW if not in parent ---
+                        # --- Determine overlap ---
+                        current_hashes = {c.get("commit") for c in current_commits}
+                        intersection = parent_hashes & current_hashes
+                        no_overlap = len(intersection) == 0
+
+                        # --- Output current commits ---
+                        markdown_output += "  - Last 5 commits:\n"
                         for commit in current_commits:
-                            prefix = "N" if commit.get("commit") not in parent_hashes else ""
+                            if no_overlap:
+                                prefix = "n"
+                            else:
+                                prefix = "N" if commit.get("commit") not in parent_hashes else "_"
                             markdown_output += format_commit(commit, repo_id, prefix=prefix)
 
                         markdown_output += "\n"
