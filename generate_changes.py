@@ -455,7 +455,6 @@ def main():
                         no_overlap = len(intersection) == 0
 
                         # --- Output current commits ---
-                        markdown_output += "  - Last 5 commits:\n"
                         for commit in current_commits:
                             if no_overlap:
                                 prefix = "n"
