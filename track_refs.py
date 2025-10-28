@@ -77,18 +77,21 @@ def ensure_tracking_worktree():
         run(["git", "pull"], cwd=TRACKING_WORKTREE_DIR, capture=False)
 
 def read_tracked_repos():
-    """Read the repo list file and return list of (repo_id, clone_url)"""
+    """Read the repo list file and return list of (repo_id, clone_url, platform)"""
     repos = []
     with open(REPO_LIST_FILE, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            parts = line.split(None, 1)
-            if len(parts) != 2:
+            parts = line.split()
+            if len(parts) < 2:
                 print(f"Invalid line in {REPO_LIST_FILE}: {line}")
                 continue
-            repos.append((parts[0], parts[1]))
+            repo_id = parts[0]
+            clone_url = parts[1]
+            platform = parts[2] if len(parts) >= 3 else None
+            repos.append((repo_id, clone_url, platform))
     return repos
 
 def ensure_repo_cloned(repo_id, clone_url):
@@ -192,7 +195,7 @@ def write_all_tags_manifest(all_tags):
 def write_all_repos_manifest(repos):
     """Save list of all tracked repo_ids into all-repos.json"""
     all_projects_path = os.path.join(TRACKING_WORKTREE_DIR, "all-repos.json")
-    repo_ids = [repo_id for repo_id, _ in repos]
+    repo_ids = [repo_id for repo_id, _, _ in repos]
     with open(all_projects_path, "w", encoding="utf-8") as f:
         json.dump(sorted(repo_ids), f, indent=2)
     print(f"Generated all-repos.json with {len(repo_ids)} repos")
@@ -213,7 +216,7 @@ def main():
     repos = read_tracked_repos()
     all_tags = {}  # { "tag_name": set_of_repo_ids }
 
-    for repo_id, clone_url in repos:
+    for repo_id, clone_url, platform in repos:
         print(f"\nProcessing repo: {repo_id}")
         repo_path = ensure_repo_cloned(repo_id, clone_url)
 
