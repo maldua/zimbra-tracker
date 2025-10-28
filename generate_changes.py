@@ -235,11 +235,12 @@ def has_changes(repo_dir):
     )
     return bool(result.stdout.strip())
 
-def format_commit(commit, repo_id, prefix=""):
+def format_commit(repo_config, commit, repo_id, prefix=""):
     """
     Format a single commit into markdown.
 
     Args:
+        repo_config: Repositories configuration
         commit (dict): Commit dictionary containing commit, timestamp, author, committer, message
         repo_id (str): Repository name for GitHub URLs
         prefix (str): Optional prefix like 'NEW' or 'REMOVED'
@@ -266,7 +267,7 @@ def format_commit(commit, repo_id, prefix=""):
         f"| authored by *{author}* | committed by *{committer}*\n"
     )
 
-def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_file_path, prefix=""):
+def format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, ref_name, ref_file_path, prefix=""):
     """
     Append the last 5 commits of a tag or branch to markdown_output using format_commit.
     """
@@ -287,7 +288,7 @@ def format_recent_commits(commit_hash, markdown_output, repo_id, ref_name, ref_f
     last_commits = commits_json[-5:][::-1]  # newest first
 
     for commit in last_commits:
-        markdown_output += format_commit(commit, repo_id, prefix=prefix)
+        markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
 
     markdown_output += "\n"
     return markdown_output
@@ -491,7 +492,7 @@ def main():
                         tag_file = current_tags[tag].get("file")
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
-                            markdown_output = format_recent_commits(commit_hash, markdown_output, repo_id, tag, tag_file_path, "")
+                            markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, tag, tag_file_path, "")
                     markdown_output += "\n"
 
                     markdown_output += "\n"
@@ -556,7 +557,7 @@ def main():
                                 prefix = "n"
                             else:
                                 prefix = "N" if commit.get("commit") not in parent_hashes else "_"
-                            markdown_output += format_commit(commit, repo_id, prefix=prefix)
+                            markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
 
                         markdown_output += "\n"
 
