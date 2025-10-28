@@ -22,6 +22,8 @@ from subprocess import run, PIPE
 from pathlib import Path
 import subprocess
 import json
+import re
+from urllib.parse import urlparse
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -38,6 +40,81 @@ def run_cmd(cmd, cwd=None):
     if result.returncode != 0:
         raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
     return result.stdout.strip()
+
+def detect_git_platform(url):
+    """Return 'github' or 'gitlab' or 'unknown' based on repo URL."""
+    url_lower = url.lower()
+    if "github.com" in url_lower:
+        return "github"
+    elif "gitlab.com" in url_lower:
+        return "gitlab"
+    else:
+        return "unknown"
+
+def load_repo_config(filepath="zimbra_tracked_repos.txt"):
+    """Load repository URL and platform info."""
+    repos = {}
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = re.split(r"\s+", line)
+            if len(parts) < 2:
+                continue
+
+            repo_id, repo_url = parts[0], parts[1]
+            platform = parts[2] if len(parts) > 2 else detect_git_platform(repo_url)
+
+            # Extract clean base for link generation
+            normalized_url = normalize_repo_url(repo_url, platform)
+            repos[repo_id] = {"url": repo_url, "platform": platform, "base": normalized_url}
+
+    return repos
+
+def normalize_repo_url(repo_url, platform):
+    """Normalize SSH or HTTPS git URLs to a web base URL."""
+    if repo_url.endswith(".git"):
+        repo_url = repo_url[:-4]
+
+    if repo_url.startswith("git@"):
+        # Convert SSH form like git@github.com:user/repo to https://github.com/user/repo
+        match = re.match(r"git@([^:]+):(.+)", repo_url)
+        if match:
+            host, path = match.groups()
+            return f"https://{host}/{path}"
+    elif repo_url.startswith("http"):
+        parsed = urlparse(repo_url)
+        return f"https://{parsed.netloc}{parsed.path}"
+
+    # fallback
+    return repo_url
+
+def make_repo_links(base_url, platform, repo_id, tag, commit_hash=None):
+    """Return dictionary with tag/tree/commit links depending on platform."""
+    if platform == "github":
+        return {
+            "tag": f"{base_url}/releases/tag/{tag}",
+            "tree": f"{base_url}/tree/{tag}",
+            "commits": f"{base_url}/commits/{tag}",
+            "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
+        }
+    elif platform == "gitlab":
+        return {
+            "tag": f"{base_url}/-/tags/{tag}",
+            "tree": f"{base_url}/-/tree/{tag}",
+            "commits": f"{base_url}/-/commits/{tag}",
+            "commit": f"{base_url}/-/commit/{commit_hash}" if commit_hash else None
+        }
+    else:
+        # Unknown, fallback
+        return {
+            "tag": f"{base_url}/releases/tag/{tag}",
+            "tree": f"{base_url}/tree/{tag}",
+            "commits": f"{base_url}/commits/{tag}",
+            "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
+        }
 
 def ensure_markdown_worktree():
     """Ensure the markdown worktree and branch exist."""
@@ -176,7 +253,12 @@ def format_commit(commit, repo_id, prefix=""):
     committer = commit.get("committer", "Unknown")
     ts = commit.get("timestamp", 0)
     dt = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S UTC")
-    github_url = f"https://github.com/Zimbra/{repo_id}/commit/{commit.get('commit')}"
+
+    cfg = repo_config.get(repo_id, {})
+    base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+    platform = cfg.get("platform", "github")
+    links = make_repo_links(base, platform, repo_id, "", chash)
+    github_url = links["commit"]
 
     prefix_str = f"**{prefix}**" if prefix else "_"
     return (
@@ -232,6 +314,8 @@ def main():
     markdown_output += "## Events\n\n"
     for ev in events:
         markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
+
+    repo_config = load_repo_config("zimbra_tracked_repos.txt")
 
     # Traverse commits **newest to oldest** to produce snapshots
     for commit_hash in reversed(tracking_commits):
@@ -397,7 +481,13 @@ def main():
                 if new_tags:
                     markdown_output += "#### 🆕 New Tags\n\n"
                     for tag in new_tags:
-                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag}) | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/)| Recent commits 👇\n"
+
+                        cfg = repo_config.get(repo_id, {})
+                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+                        platform = cfg.get("platform", "github")
+                        links = make_repo_links(base, platform, repo_id, tag)
+
+                        markdown_output += f"- **[{tag}]({links['tag']})** | [Tag]({links['tag']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})| Recent commits 👇\n"
                         tag_file = current_tags[tag].get("file")
                         if tag_file:
                             tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
@@ -410,9 +500,15 @@ def main():
                 if changed_tags:
                     markdown_output += "#### 🔄 Updated Tags\n\n"
                     for tag in changed_tags:
+
+                        cfg = repo_config.get(repo_id, {})
+                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+                        platform = cfg.get("platform", "github")
+                        links = make_repo_links(base, platform, repo_id, tag)
+
                         parent_commit_hash = parent_tags[tag].get("latest_commit")
                         current_commit_hash = current_tags[tag].get("latest_commit")
-                        markdown_output += f"- **[{tag}](https://github.com/Zimbra/{repo_id}/releases/tag/{tag})** | [Tag](https://github.com/Zimbra/{repo_id}/releases/tag/{tag}) | [Tree](https://github.com/Zimbra/zm-build/{repo_id}/{tag}) | [Commits](https://github.com/Zimbra/{repo_id}/commits/{tag}/)| [Previous tag target]({parent_commit_hash}) | Recent commits 👇\n"
+                        markdown_output += f"- **[{tag}]({links['tag']})** | [Tag]({links['tag']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})| [Previous tag target]({parent_commit_hash}) | Recent commits 👇\n"
 
                         # --- Load last 5 parent commits ---
                         parent_tag_file = parent_tags[tag].get("file")
