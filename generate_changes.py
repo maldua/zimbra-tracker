@@ -24,6 +24,7 @@ import subprocess
 import json
 import re
 from urllib.parse import urlparse
+import shutil
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -616,6 +617,10 @@ def main():
         print("✅ Markdown changes generated and committed successfully.")
     else:
         print("ℹ️ No changes to commit in markdown worktree.")
+
+    if os.path.exists(TMP_WORK_DIR):
+        shutil.rmtree(TMP_WORK_DIR)
+        print(f"✅ Removed all temporary work clones at {TMP_WORK_DIR}")
 
 if __name__ == "__main__":
     main()
