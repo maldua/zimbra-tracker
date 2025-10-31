@@ -670,6 +670,77 @@ def main():
     else:
         print("ℹ️ No changes to commit in markdown worktree.")
 
+snapshot_mode = True
+if snapshot_mode:
+    # --- Repo processing and snapshot/push ---
+    all_repos = sorted(set(current_repos))  # Sort repos alphabetically
+    for repo_id in all_repos:
+        if repo_id in new_repos:
+            # Skip brand new repos; no historical data to compare
+            continue
+
+        repo_changed = False
+
+        # --- Detect tag changes ---
+        current_tags_data = current_snapshot["repo_tags"].get(repo_id, {})
+        parent_tags_data = parent_snapshot["repo_tags"].get(repo_id, {})
+
+        new_tags = [t for t in current_tags_data if t not in parent_tags_data]
+        changed_tags = [
+            t for t in current_tags_data
+            if t in parent_tags_data and current_tags_data[t].get("latest_commit") != parent_tags_data[t].get("latest_commit")
+        ]
+
+        # --- Detect branch changes ---
+        current_branches = current_snapshot["repo_branches"].get(repo_id, {})
+        parent_branches = parent_snapshot["repo_branches"].get(repo_id, {})
+
+        new_branches = [b for b in current_branches if b not in parent_branches]
+        changed_branches = [
+            b for b in current_branches
+            if b in parent_branches and current_branches[b] != parent_branches[b]
+        ]
+
+        if new_tags or changed_tags or new_branches or changed_branches:
+            repo_changed = True
+
+        if repo_changed:
+            print(f"📦 Processing snapshots for repo {repo_id}...")
+
+            # --- Prepare working clone ---
+            work_dir = prepare_working_clone(repo_id)
+
+            # --- Create snapshot tags ---
+            for tag in new_tags + changed_tags:
+                latest_commit = current_tags_data[tag]["latest_commit"]
+                snapshot_tag = snapshot_name_for(tag)
+                subprocess.run(
+                    ["git", "tag", "-f", snapshot_tag, latest_commit],
+                    cwd=work_dir,
+                    check=True
+                )
+                print(f"🏷️ Created snapshot tag {snapshot_tag} for {tag}")
+
+            # --- Create snapshot branches ---
+            for branch in new_branches + changed_branches:
+                commits = current_branches[branch]
+                latest_commit = commits[-1]
+                snapshot_branch = snapshot_name_for(branch)
+                subprocess.run(
+                    ["git", "branch", "-f", snapshot_branch, latest_commit],
+                    cwd=work_dir,
+                    check=True
+                )
+                print(f"🌿 Created snapshot branch {snapshot_branch} for {branch}")
+
+            # --- Ensure remote repo exists ---
+            remote_repo_url = ensure_snapshot_remote_repo(repo_id)
+
+            # --- Push all local branches and tags (force) ---
+            subprocess.run(["git", "push", "--force", remote_repo_url, "--all"], cwd=work_dir, check=True)
+            subprocess.run(["git", "push", "--force", remote_repo_url, "--tags"], cwd=work_dir, check=True)
+            print(f"✅ Pushed snapshots and all refs for {repo_id}")
+
     if os.path.exists(TMP_WORK_DIR):
         shutil.rmtree(TMP_WORK_DIR)
         print(f"✅ Removed all temporary work clones at {TMP_WORK_DIR}")
