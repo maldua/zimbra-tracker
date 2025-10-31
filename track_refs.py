@@ -253,8 +253,13 @@ def main():
     else:
         print("No changes to commit")
 
-    # Clean up temporary clones
-    shutil.rmtree(TMP_REPOS_DIR, ignore_errors=True)
+    # Clean up temporary clones only if requested.
+    # Keep TMP_REPOS_DIR around for generate_changes.py to use for snapshot creation.
+    KEEP_TMP_REPOS = os.environ.get("ZTR_KEEP_TMP_REPOS", "1")  # default: keep
+    if KEEP_TMP_REPOS in ("0", "false", "False"):
+        shutil.rmtree(TMP_REPOS_DIR, ignore_errors=True)
+    else:
+        print(f"Keeping temporary clones in {TMP_REPOS_DIR} for snapshotting.")
 
 if __name__ == "__main__":
     main()
