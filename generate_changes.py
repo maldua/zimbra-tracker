@@ -18,6 +18,7 @@ If not, see <http://www.gnu.org/licenses/>.
 import os
 import yaml
 from datetime import datetime
+from datetime import timezone
 from subprocess import run, PIPE
 from pathlib import Path
 import subprocess
@@ -33,6 +34,11 @@ MARKDOWN_WORKTREE_DIR = "../zimbra-tracker-markdown-changes"
 EVENTS_BRANCH = "events"
 MARKDOWN_BRANCH = "markdown_changes"
 EVENTS_DIR = os.path.join(TRACKING_WORKTREE_DIR, EVENTS_BRANCH)
+
+TMP_REPOS_DIR = "tmp_repos"  # must match track_refs.py
+TMP_WORK_DIR = "tmp_work_repos"  # ephemeral working clones for creating snapshots
+SNAPSHOT_ORG = "maldua-zimbra-snapshot"
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # optional, for API fallback
 
 # --- Helpers ---
 def run_cmd(cmd, cwd=None):
@@ -310,6 +316,52 @@ def get_tracking_commit_timestamp():
 def snapshot_name_for(ref_name):
     ts = get_tracking_commit_timestamp()
     return f"{ref_name}-snapshot-{ts}"
+
+def prepare_working_clone(repo_id):
+    mirror_path = os.path.join(TMP_REPOS_DIR, repo_id)
+    if not os.path.exists(mirror_path):
+        raise RuntimeError(f"Mirror for {repo_id} not found at {mirror_path}; run track_refs.py first.")
+    work_dir = os.path.join(TMP_WORK_DIR, repo_id)
+    # remove old work dir
+    if os.path.exists(work_dir):
+        subprocess.run(["rm", "-rf", work_dir], check=True)
+    os.makedirs(TMP_WORK_DIR, exist_ok=True)
+    # clone from mirror (mirror is bare); make a normal clone from it
+    subprocess.run(["git", "clone", "--no-local", mirror_path, work_dir], check=True)
+    return work_dir
+
+def ensure_snapshot_remote_repo(repo_id):
+    """
+    Ensure that https://github.com/{SNAPSHOT_ORG}/{repo_id}.git exists.
+    Tries gh CLI first (preferred). Requires authenticated gh CLI or GITHUB_TOKEN.
+    """
+    remote_repo = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}.git"
+    # Try gh CLI
+    try:
+        subprocess.run(["gh", "repo", "view", f"{SNAPSHOT_ORG}/{repo_id}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return remote_repo
+    except subprocess.CalledProcessError:
+        # repo doesn't exist; try to create with gh
+        try:
+            print(f"Creating repo {SNAPSHOT_ORG}/{repo_id} via `gh`...")
+            subprocess.run(["gh", "repo", "create", f"{SNAPSHOT_ORG}/{repo_id}", "--private", "--confirm"], check=True)
+            return remote_repo
+        except subprocess.CalledProcessError:
+            # fallback to API if GITHUB_TOKEN present
+            if GITHUB_TOKEN:
+                import json
+                print(f"Creating repo {SNAPSHOT_ORG}/{repo_id} via GitHub API...")
+                repo_data = {
+                    "name": repo_id,
+                    "private": True,
+                    "auto_init": False
+                }
+                headers = ["-H", f"Authorization: token {GITHUB_TOKEN}", "-H", "Accept: application/vnd.github+json"]
+                curl_cmd = ["curl", "-s", "-X", "POST"] + headers + ["https://api.github.com/orgs/" + SNAPSHOT_ORG + "/repos", "-d", json.dumps(repo_data)]
+                subprocess.run(curl_cmd, check=True)
+                return remote_repo
+            else:
+                raise RuntimeError(f"Cannot create repo {SNAPSHOT_ORG}/{repo_id}: no gh CLI or GITHUB_TOKEN available.")
 
 # --- Main logic ---
 def main():
