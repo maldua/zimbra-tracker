@@ -293,6 +293,23 @@ def format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, re
     markdown_output += "\n"
     return markdown_output
 
+def get_tracking_commit_timestamp():
+    """
+    Get the timestamp of the latest commit in the tracking branch.
+    Returns a string like '2025-10-14T18-21-07Z'.
+    """
+    commit_time = run_cmd(
+        ["git", "show", "-s", "--format=%ci", "tracking"],
+        cwd=TRACKING_WORKTREE_DIR,
+    )
+    from datetime import datetime, timezone
+    dt = datetime.strptime(commit_time.strip(), "%Y-%m-%d %H:%M:%S %z")
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+
+def snapshot_name_for(ref_name):
+    ts = get_tracking_commit_timestamp()
+    return f"{ref_name}-snapshot-{ts}"
+
 # --- Main logic ---
 def main():
     print("🔍 Generating Markdown changes timeline...")
