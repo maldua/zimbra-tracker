@@ -38,6 +38,7 @@ EVENTS_DIR = os.path.join(TRACKING_WORKTREE_DIR, EVENTS_BRANCH)
 TMP_REPOS_DIR = "tmp_repos"  # must match track_refs.py
 TMP_WORK_DIR = "tmp_work_repos"  # ephemeral working clones for creating snapshots
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # optional, for API fallback
+EXTERNAL_SNAPSHOT_GITHUB_TOKEN = os.environ.get("EXTERNAL_SNAPSHOT_GITHUB_TOKEN")
 
 try:
     import config
@@ -404,6 +405,13 @@ def ensure_snapshot_remote_repo(repo_id):
 
 # --- Main logic ---
 def main():
+
+    if snapshot_mode:
+        if not EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
+            raise RuntimeError(
+                "EXTERNAL_SNAPSHOT_GITHUB_TOKEN is not defined. "
+                "Please export it in your environment before running generate_changes.py"
+            )
 
     print("🔍 Generating Markdown changes timeline...")
 
