@@ -124,14 +124,14 @@ def make_repo_links(base_url, platform, repo_id, ref_name, commit_hash=None, typ
     if platform == "github":
         if type == "branch":
             return {
-                "tag": f"{base_url}/tree/{ref_name}",        # Use 'tree' as the main ref link
+                "ref": f"{base_url}/tree/{ref_name}",        # Use 'tree' as the main ref link
                 "tree": f"{base_url}/tree/{ref_name}",
                 "commits": f"{base_url}/commits/{ref_name}",
                 "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
             }
         else:  # default is 'tag'
             return {
-                "tag": f"{base_url}/releases/tag/{ref_name}",
+                "ref": f"{base_url}/releases/tag/{ref_name}",
                 "tree": f"{base_url}/tree/{ref_name}",
                 "commits": f"{base_url}/commits/{ref_name}",
                 "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
@@ -140,14 +140,14 @@ def make_repo_links(base_url, platform, repo_id, ref_name, commit_hash=None, typ
     elif platform == "gitlab":
         if type == "branch":
             return {
-                "tag": f"{base_url}/-/tree/{ref_name}",
+                "ref": f"{base_url}/-/tree/{ref_name}",
                 "tree": f"{base_url}/-/tree/{ref_name}",
                 "commits": f"{base_url}/-/commits/{ref_name}",
                 "commit": f"{base_url}/-/commit/{commit_hash}" if commit_hash else None
             }
         else:
             return {
-                "tag": f"{base_url}/-/tags/{ref_name}",
+                "ref": f"{base_url}/-/tags/{ref_name}",
                 "tree": f"{base_url}/-/tree/{ref_name}",
                 "commits": f"{base_url}/-/commits/{ref_name}",
                 "commit": f"{base_url}/-/commit/{commit_hash}" if commit_hash else None
@@ -156,7 +156,7 @@ def make_repo_links(base_url, platform, repo_id, ref_name, commit_hash=None, typ
     else:
         # Unknown platform, fallback to GitHub-style URLs
         return {
-            "tag": f"{base_url}/releases/tag/{ref_name}",
+            "ref": f"{base_url}/releases/tag/{ref_name}",
             "tree": f"{base_url}/tree/{ref_name}",
             "commits": f"{base_url}/commits/{ref_name}",
             "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
@@ -579,12 +579,12 @@ def main():
                         platform = cfg.get("platform", "github")
                         links = make_repo_links(base, platform, repo_id, tag)
 
-                        markdown_output += f"- **[{tag}]({links['tag']})** | [Tag]({links['tag']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+                        markdown_output += f"- **[{tag}]({links['ref']})** | [Tag]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
 
                         if snapshot_mode:
                             snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
                             snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
-                            markdown_output += f" | [Snapshot Tag]({snapshot_links['tag']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+                            markdown_output += f" | [Snapshot Tag]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
 
                         markdown_output += " | Recent commits 👇\n"
 
@@ -609,12 +609,12 @@ def main():
                         parent_commit_hash = parent_tags[tag].get("latest_commit")
                         current_commit_hash = current_tags[tag].get("latest_commit")
 
-                        markdown_output += f"- **[{tag}]({links['tag']})** | [Tag]({links['tag']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+                        markdown_output += f"- **[{tag}]({links['ref']})** | [Tag]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
 
                         if snapshot_mode:
                             snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
                             snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
-                            markdown_output += f" | [Snapshot Tag]({snapshot_links['tag']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+                            markdown_output += f" | [Snapshot Tag]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
 
                         markdown_output += f" | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
 
@@ -732,12 +732,12 @@ def main():
                         platform = cfg.get("platform", "github")
                         links = make_repo_links(base, platform, repo_id, branch, type="branch")
 
-                        markdown_output += f"- **[{branch}]({links['branch']})** | [Branch]({links['branch']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+                        markdown_output += f"- **[{branch}]({links['ref']})** | [Branch]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
 
                         if snapshot_mode:
                             snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
                             snapshot_links = make_repo_links(snapshot_base, platform, repo_id, branch, type="branch")
-                            markdown_output += f" | [Snapshot Branch]({snapshot_links['branch']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+                            markdown_output += f" | [Snapshot Branch]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
 
                         markdown_output += " | Recent commits 👇\n"
 
@@ -759,12 +759,12 @@ def main():
                         parent_commit_hash = parent_branches[branch].get("latest_commit")
                         current_commit_hash = current_branches[branch].get("latest_commit")
 
-                        markdown_output += f"- **[{branch}]({links['branch']})** | [Branch]({links['branch']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+                        markdown_output += f"- **[{branch}]({links['ref']})** | [Branch]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
 
                         if snapshot_mode:
                             snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
                             snapshot_links = make_repo_links(snapshot_base, platform, repo_id, branch, type="branch")
-                            markdown_output += f" | [Snapshot Branch]({snapshot_links['branch']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+                            markdown_output += f" | [Snapshot Branch]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
 
                         markdown_output += f" | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
 
