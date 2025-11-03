@@ -501,10 +501,6 @@ def main():
         # --- Repository tag changes ---
         all_repos = sorted(set(current_repos))  # Sort repos alphabetically
         for repo_id in all_repos:
-            if repo_id in new_repos:
-                # Skip brand new repos; no historical data to compare
-                continue
-
             current_tags_raw = read_tracking_file(
                 commit_hash, f"repos/{repo_id}/tags-manifest.json"
             )
@@ -656,10 +652,6 @@ def main():
         # --- Repository branch changes ---
         all_repos = sorted(set(current_repos))  # Sort repos alphabetically
         for repo_id in all_repos:
-            if repo_id in new_repos:
-                # Skip brand new repos; no historical data to compare
-                continue
-
             current_branches_raw = read_tracking_file(
                 commit_hash, f"repos/{repo_id}/branches-manifest.json"
             )
