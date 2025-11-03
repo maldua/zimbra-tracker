@@ -1,0 +1,5 @@
+# Example configuration for generate_changes.py
+# Copy this to config.py and edit as needed
+
+SNAPSHOT_ORG = "acmeoo-snapshot"
+SNAPSHOT_MODE = True
