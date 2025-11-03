@@ -37,8 +37,16 @@ EVENTS_DIR = os.path.join(TRACKING_WORKTREE_DIR, EVENTS_BRANCH)
 
 TMP_REPOS_DIR = "tmp_repos"  # must match track_refs.py
 TMP_WORK_DIR = "tmp_work_repos"  # ephemeral working clones for creating snapshots
-SNAPSHOT_ORG = "maldua-zimbra-snapshot"
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # optional, for API fallback
+
+try:
+    import config
+    SNAPSHOT_ORG = config.SNAPSHOT_ORG
+    snapshot_mode = config.SNAPSHOT_MODE
+except ImportError:
+    # fallback defaults
+    SNAPSHOT_ORG = "maldua-zimbra-snapshot"
+    snapshot_mode = True
 
 # --- Helpers ---
 def run_cmd(cmd, cwd=None):
@@ -366,7 +374,9 @@ def ensure_snapshot_remote_repo(repo_id):
 # --- Main logic ---
 def main():
 
-    snapshot_mode = True
+    if snapshot_mode:
+        snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
+        snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag_or_branch)
 
     print("🔍 Generating Markdown changes timeline...")
 
