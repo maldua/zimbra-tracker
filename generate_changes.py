@@ -374,10 +374,6 @@ def ensure_snapshot_remote_repo(repo_id):
 # --- Main logic ---
 def main():
 
-    if snapshot_mode:
-        snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
-        snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag_or_branch)
-
     print("🔍 Generating Markdown changes timeline...")
 
     ensure_events_branch_exists()
