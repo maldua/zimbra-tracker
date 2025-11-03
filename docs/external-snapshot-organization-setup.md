@@ -15,23 +15,24 @@ This document explains how to create a **GitHub Personal Access Token (PAT)** th
 
 1. Click your profile picture in the top-right corner → **Settings**.
 2. In the left sidebar, select **Developer settings**.
-3. Click **Personal access tokens** → **Tokens (classic)** (or "Fine-grained tokens").
-4. Click **Generate new token** → **Generate new token (classic)**.
+3. Click **Personal access tokens** → **Fine-grained tokens**
+4. Click **Generate new token**.
 
 ---
 
 ## 3. Configure the Token for Organization Access
 
 1. Give the token a descriptive name, e.g., `External Snapshot Organization Token`.
-2. Set an expiration date for security.
-3. Under **Scopes**, select:
-   - **`repo`** → Full control of private repositories (required to push code and tags).
-   - **`admin:org`** → Required to create new repositories in the organization.
-   - Optionally: **`workflow`** if you plan to trigger GitHub Actions.
+2. Resource Owner: The external organization
+3. Set an expiration date for security.
+4. Repository access:
+   - All repositories
+5. Permissions:
+    - **Repository permissions**:
+      - `Administration` → **Read & write**
 
-> ⚠️ The `admin:org` scope is mandatory if `generate_changes.py` might need to create new repositories in the external organization.
-
-4. Click **Generate token** at the bottom.
+6. Click **Generate token** at the bottom.
+7. **Generate token** on the summary (Administration: R/W, Metadata: R/O).
 
 ---
 
