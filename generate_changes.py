@@ -106,28 +106,59 @@ def normalize_repo_url(repo_url, platform):
     # fallback
     return repo_url
 
-def make_repo_links(base_url, platform, repo_id, tag, commit_hash=None):
-    """Return dictionary with tag/tree/commit links depending on platform."""
+def make_repo_links(base_url, platform, repo_id, ref_name, commit_hash=None, type="tag"):
+    """
+    Return dictionary with tag/tree/commit links depending on platform.
+
+    Parameters:
+        base_url (str): Base URL of the repo (e.g., https://github.com/org/repo)
+        platform (str): 'github', 'gitlab', or other
+        repo_id (str): Repository identifier (optional, kept for compatibility)
+        ref_name (str): Tag or branch name
+        commit_hash (str, optional): Specific commit hash for commit link
+        type (str): 'tag' or 'branch' (default 'tag')
+
+    Returns:
+        dict: Dictionary with 'tag', 'tree', 'commits', 'commit' links
+    """
     if platform == "github":
-        return {
-            "tag": f"{base_url}/releases/tag/{tag}",
-            "tree": f"{base_url}/tree/{tag}",
-            "commits": f"{base_url}/commits/{tag}",
-            "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
-        }
+        if type == "branch":
+            return {
+                "tag": f"{base_url}/tree/{ref_name}",        # Use 'tree' as the main ref link
+                "tree": f"{base_url}/tree/{ref_name}",
+                "commits": f"{base_url}/commits/{ref_name}",
+                "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
+            }
+        else:  # default is 'tag'
+            return {
+                "tag": f"{base_url}/releases/tag/{ref_name}",
+                "tree": f"{base_url}/tree/{ref_name}",
+                "commits": f"{base_url}/commits/{ref_name}",
+                "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
+            }
+
     elif platform == "gitlab":
-        return {
-            "tag": f"{base_url}/-/tags/{tag}",
-            "tree": f"{base_url}/-/tree/{tag}",
-            "commits": f"{base_url}/-/commits/{tag}",
-            "commit": f"{base_url}/-/commit/{commit_hash}" if commit_hash else None
-        }
+        if type == "branch":
+            return {
+                "tag": f"{base_url}/-/tree/{ref_name}",
+                "tree": f"{base_url}/-/tree/{ref_name}",
+                "commits": f"{base_url}/-/commits/{ref_name}",
+                "commit": f"{base_url}/-/commit/{commit_hash}" if commit_hash else None
+            }
+        else:
+            return {
+                "tag": f"{base_url}/-/tags/{ref_name}",
+                "tree": f"{base_url}/-/tree/{ref_name}",
+                "commits": f"{base_url}/-/commits/{ref_name}",
+                "commit": f"{base_url}/-/commit/{commit_hash}" if commit_hash else None
+            }
+
     else:
-        # Unknown, fallback
+        # Unknown platform, fallback to GitHub-style URLs
         return {
-            "tag": f"{base_url}/releases/tag/{tag}",
-            "tree": f"{base_url}/tree/{tag}",
-            "commits": f"{base_url}/commits/{tag}",
+            "tag": f"{base_url}/releases/tag/{ref_name}",
+            "tree": f"{base_url}/tree/{ref_name}",
+            "commits": f"{base_url}/commits/{ref_name}",
             "commit": f"{base_url}/commit/{commit_hash}" if commit_hash else None
         }
 
