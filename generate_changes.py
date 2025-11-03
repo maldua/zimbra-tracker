@@ -37,9 +37,17 @@ EVENTS_DIR = os.path.join(TRACKING_WORKTREE_DIR, EVENTS_BRANCH)
 
 TMP_REPOS_DIR = "tmp_repos"  # must match track_refs.py
 TMP_WORK_DIR = "tmp_work_repos"  # ephemeral working clones for creating snapshots
-SNAPSHOT_ORG = "maldua-zimbra-snapshot"
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")  # optional, for API fallback
 EXTERNAL_SNAPSHOT_GITHUB_TOKEN = os.environ.get("EXTERNAL_SNAPSHOT_GITHUB_TOKEN")
+
+try:
+    import config
+    SNAPSHOT_ORG = config.SNAPSHOT_ORG
+    snapshot_mode = config.SNAPSHOT_MODE
+except ImportError:
+    # fallback defaults
+    SNAPSHOT_ORG = ""
+    snapshot_mode = False
 
 # --- Helpers ---
 def run_cmd(cmd, cwd=None):
