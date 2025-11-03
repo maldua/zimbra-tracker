@@ -490,7 +490,7 @@ def main():
                 markdown_output += "#### 🆕 New Repositories Detected\n\n"
                 for repo_id in new_repos:
                     markdown_output += (
-                        f"- **{repo_id}** — Branches and Tags changes will only be shown in future snapshots.\n"
+                        f"- **{repo_id}**\n"
                     )
                 markdown_output += "\n"
 
