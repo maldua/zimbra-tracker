@@ -455,23 +455,8 @@ def main():
             markdown_output += f"## Very first commit ({commit_time})\n\nIgnored on purpose.\n\n"
             continue
 
-        # Handle the case where parent’s parent does not exist (branch root)
-        parent_hash = commit_parents[0]
-        parent_parents_line = run_cmd(
-            ["git", "rev-list", "--parents", "-n", "1", parent_hash],
-            cwd=TRACKING_WORKTREE_DIR
-        ).split()
-        parent_parents = parent_parents_line[1:] if len(parent_parents_line) > 1 else []
-
-        if not parent_parents:
-            commit_time = run_cmd(
-                ["git", "show", "-s", "--format=%ci", commit_hash],
-                cwd=TRACKING_WORKTREE_DIR
-            ).strip()
-            markdown_output += f"## (First) Snapshot {commit_time}\n\nIgnored on purpose.\n\n"
-            continue
-
         # Handle regular snapshot
+        parent_hash = commit_parents[0]
         commit_time = run_cmd(
             ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
         )
@@ -500,7 +485,7 @@ def main():
                 markdown_output += "#### 🆕 New Repositories Detected\n\n"
                 for repo_id in new_repos:
                     markdown_output += (
-                        f"- **{repo_id}** — Branches and Tags changes will only be shown in future snapshots.\n"
+                        f"- **{repo_id}**\n"
                     )
                 markdown_output += "\n"
 
@@ -538,10 +523,6 @@ def main():
         # --- Repository tag changes ---
         all_repos = sorted(set(current_repos))  # Sort repos alphabetically
         for repo_id in all_repos:
-            if repo_id in new_repos:
-                # Skip brand new repos; no historical data to compare
-                continue
-
             current_tags_raw = read_tracking_file(
                 commit_hash, f"repos/{repo_id}/tags-manifest.json"
             )
@@ -693,10 +674,6 @@ def main():
         # --- Repository branch changes ---
         all_repos = sorted(set(current_repos))  # Sort repos alphabetically
         for repo_id in all_repos:
-            if repo_id in new_repos:
-                # Skip brand new repos; no historical data to compare
-                continue
-
             current_branches_raw = read_tracking_file(
                 commit_hash, f"repos/{repo_id}/branches-manifest.json"
             )
