@@ -851,6 +851,12 @@ def main():
         print("ℹ️ No changes to commit in markdown worktree.")
 
 if snapshot_mode:
+    if not EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
+        raise RuntimeError(
+            "EXTERNAL_SNAPSHOT_GITHUB_TOKEN is not defined. "
+            "Please export it in your environment before running generate_changes.py"
+        )
+
     # --- Repo processing and snapshot/push ---
     all_repos = sorted(set(current_repos))  # Sort repos alphabetically
     for repo_id in all_repos:
@@ -915,9 +921,17 @@ if snapshot_mode:
             # --- Ensure remote repo exists ---
             remote_repo_url = ensure_snapshot_remote_repo(repo_id)
 
+            # --- Inject token for HTTPS URL ---
+            if remote_repo_url.startswith("https://"):
+                remote_repo_url_with_token = remote_repo_url.replace(
+                    "https://", f"https://{EXTERNAL_SNAPSHOT_GITHUB_TOKEN}@"
+                )
+            else:
+                remote_repo_url_with_token = remote_repo_url
+
             # --- Push all local branches and tags (force) ---
-            subprocess.run(["git", "push", "--force", remote_repo_url, "--all"], cwd=work_dir, check=True)
-            subprocess.run(["git", "push", "--force", remote_repo_url, "--tags"], cwd=work_dir, check=True)
+            subprocess.run(["git", "push", "--force", remote_repo_url_with_token, "--all"], cwd=work_dir, check=True)
+            subprocess.run(["git", "push", "--force", remote_repo_url_with_token, "--tags"], cwd=work_dir, check=True)
             print(f"✅ Pushed snapshots and all refs for {repo_id}")
 
     if os.path.exists(TMP_WORK_DIR):
