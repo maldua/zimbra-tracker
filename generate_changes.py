@@ -420,23 +420,8 @@ def main():
             markdown_output += f"## Very first commit ({commit_time})\n\nIgnored on purpose.\n\n"
             continue
 
-        # Handle the case where parent’s parent does not exist (branch root)
-        parent_hash = commit_parents[0]
-        parent_parents_line = run_cmd(
-            ["git", "rev-list", "--parents", "-n", "1", parent_hash],
-            cwd=TRACKING_WORKTREE_DIR
-        ).split()
-        parent_parents = parent_parents_line[1:] if len(parent_parents_line) > 1 else []
-
-        if not parent_parents:
-            commit_time = run_cmd(
-                ["git", "show", "-s", "--format=%ci", commit_hash],
-                cwd=TRACKING_WORKTREE_DIR
-            ).strip()
-            markdown_output += f"## (First) Snapshot {commit_time}\n\nIgnored on purpose.\n\n"
-            continue
-
         # Handle regular snapshot
+        parent_hash = commit_parents[0]
         commit_time = run_cmd(
             ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
         )
