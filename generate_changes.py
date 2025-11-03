@@ -658,20 +658,159 @@ def main():
                         markdown_output += f"- **{tag}** (was `{parent_commit}`)\n"
                     markdown_output += "\n"
 
-        # --- Repo branches changes ---
-        repo_branches_changes = {}
-        for repo, branches in current_snapshot["repo_branches"].items():
-            parent_branches = parent_snapshot["repo_branches"].get(repo, {})
-            for branch_name, commits in branches.items():
-                parent_commits = parent_branches.get(branch_name, [])
-                # Only show new commits
-                new_commits = [c for c in commits if c not in parent_commits]
-                if new_commits:
-                    if repo not in repo_branches_changes:
-                        repo_branches_changes[repo] = {}
-                    repo_branches_changes[repo][branch_name] = new_commits
-        if repo_branches_changes:
-            markdown_output += summarize_repo_section("Repo Branches", repo_branches_changes)
+        # --- Repository branch changes ---
+        all_repos = sorted(set(current_repos))  # Sort repos alphabetically
+        for repo_id in all_repos:
+            if repo_id in new_repos:
+                # Skip brand new repos; no historical data to compare
+                continue
+
+            current_branches_raw = read_tracking_file(
+                commit_hash, f"repos/{repo_id}/branches-manifest.json"
+            )
+            parent_branches_raw = read_tracking_file(
+                parent_hash, f"repos/{repo_id}/branches-manifest.json"
+            )
+
+            try:
+                current_branches = json.loads(current_branches_raw) if current_branches_raw else {}
+            except json.JSONDecodeError:
+                current_branches = {}
+
+            try:
+                parent_branches = json.loads(parent_branches_raw) if parent_branches_raw else {}
+            except json.JSONDecodeError:
+                parent_branches = {}
+
+            # --- Detect branch differences ---
+            new_branches = []
+            changed_branches = []
+            removed_branches = []
+
+            for branch_name, branch_data in current_branches.items():
+                if branch_name not in parent_branches:
+                    new_branches.append(branch_name)
+                else:
+                    parent_commit = parent_branches[branch_name].get("latest_commit")
+                    current_commit = branch_data.get("latest_commit")
+                    if parent_commit != current_commit:
+                        changed_branches.append(branch_name)
+
+            for branch_name in parent_branches.keys():
+                if branch_name not in current_branches:
+                    removed_branches.append(branch_name)
+
+            # Sort branches alphabetically for consistent display
+            new_branches.sort()
+            changed_branches.sort()
+            removed_branches.sort()
+
+            # --- Output if there are differences ---
+            if new_branches or changed_branches or removed_branches:
+                markdown_output += f"### 🌿 Branch Changes in **{repo_id}**\n\n"
+
+                # 🆕 New Branches
+                if new_branches:
+                    markdown_output += "#### 🆕 New Branches\n\n"
+                    for branch in new_branches:
+                        cfg = repo_config.get(repo_id, {})
+                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+                        platform = cfg.get("platform", "github")
+                        links = make_repo_links(base, platform, repo_id, branch, type="branch")
+
+                        markdown_output += f"- **[{branch}]({links['branch']})** | [Branch]({links['branch']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+
+                        if snapshot_mode:
+                            snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
+                            snapshot_links = make_repo_links(snapshot_base, platform, repo_id, branch, type="branch")
+                            markdown_output += f" | [Snapshot Branch]({snapshot_links['branch']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+
+                        markdown_output += " | Recent commits 👇\n"
+
+                        branch_file = current_branches[branch].get("file")
+                        if branch_file:
+                            branch_file_path = f"repos/{repo_id}/branches/{branch_file}"
+                            markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, branch, branch_file_path, "")
+                    markdown_output += "\n"
+
+                # 🔄 Updated Branches
+                if changed_branches:
+                    markdown_output += "#### 🔄 Updated Branches\n\n"
+                    for branch in changed_branches:
+                        cfg = repo_config.get(repo_id, {})
+                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+                        platform = cfg.get("platform", "github")
+                        links = make_repo_links(base, platform, repo_id, branch, type="branch")
+
+                        parent_commit_hash = parent_branches[branch].get("latest_commit")
+                        current_commit_hash = current_branches[branch].get("latest_commit")
+
+                        markdown_output += f"- **[{branch}]({links['branch']})** | [Branch]({links['branch']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+
+                        if snapshot_mode:
+                            snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
+                            snapshot_links = make_repo_links(snapshot_base, platform, repo_id, branch, type="branch")
+                            markdown_output += f" | [Snapshot Branch]({snapshot_links['branch']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+
+                        markdown_output += f" | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
+
+                        # --- Load parent commits ---
+                        parent_branch_file = parent_branches[branch].get("file")
+                        parent_commits = []
+                        if parent_branch_file:
+                            parent_file_path = f"repos/{repo_id}/branches/{parent_branch_file}"
+                            parent_content = read_tracking_file(parent_hash, parent_file_path)
+                            if parent_content:
+                                for line in parent_content.splitlines():
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    try:
+                                        parent_commits.append(json.loads(line))
+                                    except json.JSONDecodeError:
+                                        continue
+                                parent_commits = parent_commits[-5:][::-1]  # newest first
+                        parent_hashes = {c.get("commit") for c in parent_commits}
+
+                        # --- Load last 5 current commits ---
+                        current_branch_file = current_branches[branch].get("file")
+                        current_commits = []
+                        if current_branch_file:
+                            current_file_path = f"repos/{repo_id}/branches/{current_branch_file}"
+                            current_content = read_tracking_file(commit_hash, current_file_path)
+                            if current_content:
+                                for line in current_content.splitlines():
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    try:
+                                        current_commits.append(json.loads(line))
+                                    except json.JSONDecodeError:
+                                        continue
+                                current_commits = current_commits[-5:][::-1]  # newest first
+
+                        # --- Determine overlap ---
+                        current_hashes = {c.get("commit") for c in current_commits}
+                        intersection = parent_hashes & current_hashes
+                        no_overlap = len(intersection) == 0
+
+                        # --- Output current commits ---
+                        for commit in current_commits:
+                            if no_overlap:
+                                prefix = "n"
+                            else:
+                                prefix = "N" if commit.get("commit") not in parent_hashes else "_"
+                            markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
+
+                        markdown_output += "\n"
+
+                # 🗑️ Removed Branches
+                if removed_branches:
+                    markdown_output += "#### 🗑️ Removed Branches\n\n"
+                    for branch in removed_branches:
+                        parent_commit = parent_branches[branch].get("latest_commit", "unknown")
+                        markdown_output += f"- **{branch}** (was `{parent_commit}`)\n"
+                    markdown_output += "\n"
 
     # Write markdown file
     os.makedirs(MARKDOWN_WORKTREE_DIR, exist_ok=True)
