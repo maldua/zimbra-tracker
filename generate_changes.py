@@ -45,8 +45,8 @@ try:
     snapshot_mode = config.SNAPSHOT_MODE
 except ImportError:
     # fallback defaults
-    SNAPSHOT_ORG = "maldua-zimbra-snapshot"
-    snapshot_mode = True
+    SNAPSHOT_ORG = ""
+    snapshot_mode = False
 
 # --- Helpers ---
 def run_cmd(cmd, cwd=None):
