@@ -373,35 +373,78 @@ def prepare_working_clone(repo_id):
 def ensure_snapshot_remote_repo(repo_id):
     """
     Ensure that https://github.com/{SNAPSHOT_ORG}/{repo_id}.git exists.
-    Tries gh CLI first (preferred). Requires authenticated gh CLI or GITHUB_TOKEN.
+    - Uses `gh` CLI if available and authenticated.
+    - Falls back to GitHub REST API via curl if GITHUB_TOKEN is defined.
     """
     remote_repo = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}.git"
-    # Try gh CLI
+    gh_repo_ref = f"{SNAPSHOT_ORG}/{repo_id}"
+
+    # --- Try GH CLI ---
     try:
-        subprocess.run(["gh", "repo", "view", f"{SNAPSHOT_ORG}/{repo_id}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        print(f"🔎 Checking if remote repo {gh_repo_ref} exists via gh CLI...")
+        subprocess.run(
+            ["gh", "repo", "view", gh_repo_ref],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True
+        )
+        print(f"✅ Repo {gh_repo_ref} already exists on GitHub.")
         return remote_repo
+
+    except FileNotFoundError:
+        print("⚠️  GitHub CLI (`gh`) not found. Falling back to API method if possible...")
     except subprocess.CalledProcessError:
-        # repo doesn't exist; try to create with gh
+        # Repo doesn't exist; try to create via gh CLI
         try:
-            print(f"Creating repo {SNAPSHOT_ORG}/{repo_id} via `gh`...")
-            subprocess.run(["gh", "repo", "create", f"{SNAPSHOT_ORG}/{repo_id}", "--private", "--confirm"], check=True)
+            print(f"📦 Creating repo {gh_repo_ref} via `gh` CLI...")
+            subprocess.run(
+                ["gh", "repo", "create", gh_repo_ref, "--private", "--confirm"],
+                check=True
+            )
+            print(f"✅ Successfully created repo {gh_repo_ref} via gh CLI.")
             return remote_repo
-        except subprocess.CalledProcessError:
-            # fallback to API if GITHUB_TOKEN present
-            if GITHUB_TOKEN:
-                import json
-                print(f"Creating repo {SNAPSHOT_ORG}/{repo_id} via GitHub API...")
-                repo_data = {
-                    "name": repo_id,
-                    "private": True,
-                    "auto_init": False
-                }
-                headers = ["-H", f"Authorization: token {GITHUB_TOKEN}", "-H", "Accept: application/vnd.github+json"]
-                curl_cmd = ["curl", "-s", "-X", "POST"] + headers + ["https://api.github.com/orgs/" + SNAPSHOT_ORG + "/repos", "-d", json.dumps(repo_data)]
-                subprocess.run(curl_cmd, check=True)
-                return remote_repo
+        except FileNotFoundError:
+            print("⚠️  GitHub CLI (`gh`) not found during creation attempt.")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to create repo {gh_repo_ref} via gh CLI: {e}")
+
+    # --- Fallback to GitHub REST API if EXTERNAL_SNAPSHOT_GITHUB_TOKEN is available ---
+    if EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
+        print(f"🌐 Falling back to GitHub REST API to create {gh_repo_ref}...")
+        import json
+        repo_data = {
+            "name": repo_id,
+            "private": True,
+            "auto_init": False
+        }
+        headers = [
+            "-H", f"Authorization: token {EXTERNAL_SNAPSHOT_GITHUB_TOKEN}",
+            "-H", "Accept: application/vnd.github+json"
+        ]
+        curl_cmd = [
+            "curl", "-s", "-X", "POST"
+        ] + headers + [
+            f"https://api.github.com/orgs/{SNAPSHOT_ORG}/repos",
+            "-d", json.dumps(repo_data)
+        ]
+
+        try:
+            result = subprocess.run(curl_cmd, check=True, capture_output=True, text=True)
+            if result.stdout.strip():
+                print(f"✅ Repo {gh_repo_ref} created successfully via API.")
             else:
-                raise RuntimeError(f"Cannot create repo {SNAPSHOT_ORG}/{repo_id}: no gh CLI or GITHUB_TOKEN available.")
+                print(f"⚠️  API creation response empty — repo may already exist or failed silently.")
+            return remote_repo
+        except subprocess.CalledProcessError as e:
+            print(f"❌ GitHub API call failed for {gh_repo_ref}: {e}")
+            raise RuntimeError(
+                f"Failed to create repo {gh_repo_ref} via API. Check your EXTERNAL_SNAPSHOT_GITHUB_TOKEN permissions."
+            )
+
+    # --- Final fallback failure ---
+    raise RuntimeError(
+        f"Cannot ensure repo {gh_repo_ref}: neither gh CLI found nor valid EXTERNAL_SNAPSHOT_GITHUB_TOKEN available."
+    )
 
 # --- Main logic ---
 def main():
