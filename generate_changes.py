@@ -883,7 +883,7 @@ def main():
 
                     ### --- Tags
                     current_tags_raw = read_tracking_file(
-                        commit_hash, f"repos/{repo_id}/tags-manifest.json"
+                        last_commit_hash, f"repos/{repo_id}/tags-manifest.json"
                     )
                     parent_tags_raw = read_tracking_file(
                         parent_hash, f"repos/{repo_id}/tags-manifest.json"
@@ -914,7 +914,7 @@ def main():
                                 changed_tags.append(tag_name)
                     ### --- Branches
                     current_branches_raw = read_tracking_file(
-                        commit_hash, f"repos/{repo_id}/branches-manifest.json"
+                        last_commit_hash, f"repos/{repo_id}/branches-manifest.json"
                     )
                     parent_branches_raw = read_tracking_file(
                         parent_hash, f"repos/{repo_id}/branches-manifest.json"
