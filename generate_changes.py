@@ -866,7 +866,7 @@ def main():
             pass
         else:
             # --- Define current_repos based on the very first commit ---
-            last_commit_hash = reversed(tracking_commits)[0]  # Get the first commit in the reversed list
+            last_commit_hash = tracking_commits[-1]  # Get the first commit in the reversed list
             current_repos_raw = read_tracking_file(last_commit_hash, "all-repos.json")
 
             try:
@@ -900,10 +900,6 @@ def main():
                     "repo_tags": yaml.safe_load(read_tracking_file(parent_hash, "repo_tags.yaml") or "{}"),
                     "repo_branches": yaml.safe_load(read_tracking_file(parent_hash, "repo_branches.yaml") or "{}"),
                 }
-
-
-                # Do useful stuff - BEGIN
-                # Do useful stuff - END
 
                 # --- Repo processing and snapshot/push ---
                 all_repos = sorted(set(current_repos))  # Sort repos alphabetically
