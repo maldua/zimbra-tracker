@@ -30,9 +30,10 @@ This document explains how to create a **GitHub Personal Access Token (PAT)** th
 5. Permissions:
     - **Repository permissions**:
       - `Administration` → **Read & write**
+      - `Contents` → **Read & write**
 
 6. Click **Generate token** at the bottom.
-7. **Generate token** on the summary (Administration: R/W, Metadata: R/O).
+7. **Generate token** on the summary (Administration: R/W, Contents: R/W, Metadata: R/O).
 
 ---
 
