@@ -954,7 +954,7 @@ def main():
 
                         # --- Create snapshot tags ---
                         for tag in new_tags + changed_tags:
-                            latest_commit = current_tags_data[tag]["latest_commit"]
+                            latest_commit = current_tags[tag]["latest_commit"]
                             snapshot_tag = snapshot_name_for(tag)
                             subprocess.run(
                                 ["git", "tag", "-f", snapshot_tag, latest_commit],
