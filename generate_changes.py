@@ -860,9 +860,6 @@ if snapshot_mode:
     # --- Repo processing and snapshot/push ---
     all_repos = sorted(set(current_repos))  # Sort repos alphabetically
     for repo_id in all_repos:
-        if repo_id in new_repos:
-            # Skip brand new repos; no historical data to compare
-            continue
 
         repo_changed = False
 
