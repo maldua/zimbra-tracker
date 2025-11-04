@@ -881,25 +881,67 @@ def main():
 
                     repo_changed = False
 
-                    # --- Detect tag changes ---
-                    current_tags_data = current_snapshot["repo_tags"].get(repo_id, {})
-                    parent_tags_data = parent_snapshot["repo_tags"].get(repo_id, {})
+                    ### --- Tags
+                    current_tags_raw = read_tracking_file(
+                        commit_hash, f"repos/{repo_id}/tags-manifest.json"
+                    )
+                    parent_tags_raw = read_tracking_file(
+                        parent_hash, f"repos/{repo_id}/tags-manifest.json"
+                    )
 
-                    new_tags = [t for t in current_tags_data if t not in parent_tags_data]
-                    changed_tags = [
-                        t for t in current_tags_data
-                        if t in parent_tags_data and current_tags_data[t].get("latest_commit") != parent_tags_data[t].get("latest_commit")
-                    ]
+                    try:
+                        current_tags = json.loads(current_tags_raw) if current_tags_raw else {}
+                    except json.JSONDecodeError:
+                        current_tags = {}
 
-                    # --- Detect branch changes ---
-                    current_branches = current_snapshot["repo_branches"].get(repo_id, {})
-                    parent_branches = parent_snapshot["repo_branches"].get(repo_id, {})
+                    try:
+                        parent_tags = json.loads(parent_tags_raw) if parent_tags_raw else {}
+                    except json.JSONDecodeError:
+                        parent_tags = {}
 
-                    new_branches = [b for b in current_branches if b not in parent_branches]
-                    changed_branches = [
-                        b for b in current_branches
-                        if b in parent_branches and current_branches[b] != parent_branches[b]
-                    ]
+                    # --- Detect tag differences ---
+                    new_tags = []
+                    changed_tags = []
+
+                    # Detect new and changed tags
+                    for tag_name, tag_data in current_tags.items():
+                        if tag_name not in parent_tags:
+                            new_tags.append(tag_name)
+                        else:
+                            parent_commit = parent_tags[tag_name].get("latest_commit")
+                            current_commit = tag_data.get("latest_commit")
+                            if parent_commit != current_commit:
+                                changed_tags.append(tag_name)
+                    ### --- Branches
+                    current_branches_raw = read_tracking_file(
+                        commit_hash, f"repos/{repo_id}/branches-manifest.json"
+                    )
+                    parent_branches_raw = read_tracking_file(
+                        parent_hash, f"repos/{repo_id}/branches-manifest.json"
+                    )
+
+                    try:
+                        current_branches = json.loads(current_branches_raw) if current_branches_raw else {}
+                    except json.JSONDecodeError:
+                        current_branches = {}
+
+                    try:
+                        parent_branches = json.loads(parent_branches_raw) if parent_branches_raw else {}
+                    except json.JSONDecodeError:
+                        parent_branches = {}
+
+                    # --- Detect branch differences ---
+                    new_branches = []
+                    changed_branches = []
+
+                    for branch_name, branch_data in current_branches.items():
+                        if branch_name not in parent_branches:
+                            new_branches.append(branch_name)
+                        else:
+                            parent_commit = parent_branches[branch_name].get("latest_commit")
+                            current_commit = branch_data.get("latest_commit")
+                            if parent_commit != current_commit:
+                                changed_branches.append(branch_name)
 
                     if new_tags or changed_tags or new_branches or changed_branches:
                         repo_changed = True
