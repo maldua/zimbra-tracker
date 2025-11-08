@@ -549,8 +549,9 @@ def main():
             if new_repos:
                 markdown_output += "#### 🆕 New Repositories Detected\n\n"
                 for repo_id in new_repos:
+                    categories_str = ", ".join(repo_categories.get(repo_id, ["uncategorized"]))
                     markdown_output += (
-                        f"- **{repo_id}**\n"
+                        f"- **{repo_id} ({categories_str})**\n"
                     )
                 markdown_output += "\n"
 
