@@ -4,8 +4,8 @@ suggest_conf.py
 
 Generates suggested configuration files for Zimbra repository tracking:
 
-- config.py.suggestedconf
-- zimbra_tracked_repos_suggested.txt
+- config.py.suggested
+- zimbra_tracked_repos.txt.suggested
 - categories.yaml.suggested
 
 Usage:
@@ -21,8 +21,8 @@ import os
 import sys
 import requests
 
-SUGGESTED_CONF_PY_FILE="config.py.suggestedconf"
-SUGGESTED_ZIMBRA_TRACKED_REPOS="zimbra_tracked_repos_suggested.txt"
+SUGGESTED_CONF_PY_FILE="config.py.suggested"
+SUGGESTED_ZIMBRA_TRACKED_REPOS="zimbra_tracked_repos.txt.suggested"
 SUGGESTED_CATEGORIES="categories.yaml.suggested"
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
