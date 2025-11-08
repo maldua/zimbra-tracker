@@ -74,6 +74,35 @@ def detect_git_platform(url):
     else:
         return "unknown"
 
+def load_categories(categories_file="categories.yaml", tracked_repo_ids=None):
+    """
+    Returns a dict mapping repo_id -> list of categories.
+    Any repo_id not listed in categories.yaml gets ['uncategorized'].
+    Only repo_ids present in tracked_repo_ids are included.
+    """
+    if tracked_repo_ids is None:
+        tracked_repo_ids = []
+
+    with open(categories_file, "r") as f:
+        data = yaml.safe_load(f)
+
+    # category -> list of repos
+    category_map = data.get("categories", {})
+    repo_to_categories = {}
+
+    for category_name, category_data in category_map.items():
+        repos = category_data.get("repos", [])
+        for repo_id in repos:
+            if repo_id in tracked_repo_ids:
+                repo_to_categories.setdefault(repo_id, []).append(category_name)
+
+    # assign uncategorized if no category found
+    for repo_id in tracked_repo_ids:
+        if repo_id not in repo_to_categories:
+            repo_to_categories[repo_id] = ["uncategorized"]
+
+    return repo_to_categories
+
 def load_repo_config(filepath="tracked_repos.list"):
     """Load repository URL and platform info."""
     repos = {}
@@ -437,6 +466,379 @@ def ensure_snapshot_remote_repo(repo_id, source_organization):
     print(f"✅ Fork {gh_repo_ref} ready for use.")
     return remote_repo
 
+def generate_repo_tag_changes(markdown_output, repo_config, repo_categories, repo_id, commit_hash, parent_hash):
+    """
+    Generate markdown for tag changes in a repo, fully matching previous logic.
+    """
+    current_tags_raw = read_tracking_file(commit_hash, f"repos/{repo_id}/tags-manifest.json")
+    parent_tags_raw = read_tracking_file(parent_hash, f"repos/{repo_id}/tags-manifest.json")
+
+    try:
+        current_tags = json.loads(current_tags_raw) if current_tags_raw else {}
+    except json.JSONDecodeError:
+        current_tags = {}
+
+    try:
+        parent_tags = json.loads(parent_tags_raw) if parent_tags_raw else {}
+    except json.JSONDecodeError:
+        parent_tags = {}
+
+    new_tags = []
+    changed_tags = []
+    removed_tags = []
+
+    # Detect new and changed tags
+    for tag_name, tag_data in current_tags.items():
+        if tag_name not in parent_tags:
+            new_tags.append(tag_name)
+        else:
+            parent_commit = parent_tags[tag_name].get("latest_commit")
+            current_commit = tag_data.get("latest_commit")
+            if parent_commit != current_commit:
+                changed_tags.append(tag_name)
+
+    # Detect removed tags
+    for tag_name in parent_tags.keys():
+        if tag_name not in current_tags:
+            removed_tags.append(tag_name)
+
+    if new_tags or changed_tags or removed_tags:
+        markdown_output += f"### 🏷️ Tag Changes in **{repo_id}**\n\n"
+
+    # --- New Tags ---
+    if new_tags:
+        markdown_output += "#### 🆕 New Tags\n\n"
+        for tag in new_tags:
+            cfg = repo_config.get(repo_id, {})
+            base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+            platform = cfg.get("platform", "github")
+            links = make_repo_links(base, platform, repo_id, tag)
+
+            markdown_output += f"- **[{tag}]({links['ref']})** | [Tag]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+
+            # Include snapshot links if snapshot_mode is enabled
+            if snapshot_mode:
+                snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
+                snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
+                markdown_output += f" | [Snapshot Tag]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+
+            markdown_output += " | Recent commits 👇\n"
+
+            tag_file = current_tags[tag].get("file")
+            if tag_file:
+                tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
+                markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, tag, tag_file_path, "")
+
+        markdown_output += "\n"
+
+    # --- Changed Tags ---
+    if changed_tags:
+        markdown_output += "#### 🔄 Updated Tags\n\n"
+        for tag in changed_tags:
+            cfg = repo_config.get(repo_id, {})
+            base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+            platform = cfg.get("platform", "github")
+            links = make_repo_links(base, platform, repo_id, tag)
+
+            parent_commit_hash = parent_tags[tag].get("latest_commit")
+            current_commit_hash = current_tags[tag].get("latest_commit")
+
+            markdown_output += f"- **[{tag}]({links['ref']})** | [Tag]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
+
+            if snapshot_mode:
+                snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
+                snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
+                markdown_output += f" | [Snapshot Tag]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
+
+            markdown_output += f" | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
+
+            # --- Load previous commits
+            parent_tag_file = parent_tags[tag].get("file")
+            parent_commits = []
+            if parent_tag_file:
+                parent_file_path = f"repos/{repo_id}/tags/{parent_tag_file}"
+                parent_content = read_tracking_file(parent_hash, parent_file_path)
+                if parent_content:
+                    for line in parent_content.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            parent_commits.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+                    parent_commits = parent_commits[-5:][::-1]  # newest first
+            parent_hashes = {c.get("commit") for c in parent_commits}
+
+            # --- Load last 5 current commits ---
+            current_tag_file = current_tags[tag].get("file")
+            current_commits = []
+            if current_tag_file:
+                current_file_path = f"repos/{repo_id}/tags/{current_tag_file}"
+                current_content = read_tracking_file(commit_hash, current_file_path)
+                if current_content:
+                    for line in current_content.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            current_commits.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+                    current_commits = current_commits[-5:][::-1]  # newest first
+
+            # --- Determine overlap ---
+            current_hashes = {c.get("commit") for c in current_commits}
+            intersection = parent_hashes & current_hashes
+            no_overlap = len(intersection) == 0
+
+            for commit in current_commits:
+                if no_overlap:
+                    prefix = "n"
+                else:
+                    prefix = "N" if commit.get("commit") not in parent_hashes else "_"
+                markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
+
+            markdown_output += "\n"
+
+    # --- Removed Tags ---
+    if removed_tags:
+        markdown_output += "#### 🗑️ Removed Tags\n\n"
+        for tag in removed_tags:
+            parent_commit = parent_tags[tag].get("latest_commit", "unknown")
+            markdown_output += f"- **{tag}** (was `{parent_commit}`)\n"
+        markdown_output += "\n"
+
+    return markdown_output
+
+def generate_repo_branch_changes(markdown_output, repo_config, repo_categories, repo_id, commit_hash, parent_hash):
+    """
+    Generate markdown for branch changes in a repo, fully matching previous logic.
+    """
+    current_branches_raw = read_tracking_file(commit_hash, f"repos/{repo_id}/branches-manifest.json")
+    parent_branches_raw = read_tracking_file(parent_hash, f"repos/{repo_id}/branches-manifest.json")
+
+    try:
+        current_branches = json.loads(current_branches_raw) if current_branches_raw else {}
+    except json.JSONDecodeError:
+        current_branches = {}
+
+    try:
+        parent_branches = json.loads(parent_branches_raw) if parent_branches_raw else {}
+    except json.JSONDecodeError:
+        parent_branches = {}
+
+    new_branches = []
+    changed_branches = []
+    removed_branches = []
+
+    for branch_name, branch_data in current_branches.items():
+        if branch_name not in parent_branches:
+            new_branches.append(branch_name)
+        else:
+            parent_commit = parent_branches[branch_name].get("latest_commit")
+            current_commit = branch_data.get("latest_commit")
+            if parent_commit != current_commit:
+                changed_branches.append(branch_name)
+
+    for branch_name in parent_branches.keys():
+        if branch_name not in current_branches:
+            removed_branches.append(branch_name)
+
+    if new_branches or changed_branches or removed_branches:
+        markdown_output += f"### 🌿 Branch Changes in **{repo_id}**\n\n"
+
+    # New Branches
+    for branch in new_branches:
+        cfg = repo_config.get(repo_id, {})
+        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+        platform = cfg.get("platform", "github")
+        links = make_repo_links(base, platform, repo_id, branch, type="branch")
+        markdown_output += f"- **[{branch}]({links['ref']})** | [Branch]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']}) | Recent commits 👇\n"
+        branch_file = current_branches[branch].get("file")
+        if branch_file:
+            branch_file_path = f"repos/{repo_id}/branches/{branch_file}"
+            markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, branch, branch_file_path, "")
+    markdown_output += "\n"
+
+    # Changed Branches
+    for branch in changed_branches:
+        cfg = repo_config.get(repo_id, {})
+        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+        platform = cfg.get("platform", "github")
+        links = make_repo_links(base, platform, repo_id, branch, type="branch")
+        parent_commit_hash = parent_branches[branch].get("latest_commit")
+        markdown_output += f"- **[{branch}]({links['ref']})** | Updated | [Commits]({links['commits']}) | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
+        parent_branch_file = parent_branches[branch].get("file")
+        parent_commits = []
+        if parent_branch_file:
+            parent_file_path = f"repos/{repo_id}/branches/{parent_branch_file}"
+            parent_content = read_tracking_file(parent_hash, parent_file_path)
+            if parent_content:
+                for line in parent_content.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        parent_commits.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+                parent_commits = parent_commits[-5:][::-1]
+        parent_hashes = {c.get("commit") for c in parent_commits}
+
+        current_branch_file = current_branches[branch].get("file")
+        current_commits = []
+        if current_branch_file:
+            current_file_path = f"repos/{repo_id}/branches/{current_branch_file}"
+            current_content = read_tracking_file(commit_hash, current_file_path)
+            if current_content:
+                for line in current_content.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        current_commits.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+                current_commits = current_commits[-5:][::-1]
+
+        current_hashes = {c.get("commit") for c in current_commits}
+        intersection = parent_hashes & current_hashes
+        no_overlap = len(intersection) == 0
+
+        for commit in current_commits:
+            if no_overlap:
+                prefix = "n"
+            else:
+                prefix = "N" if commit.get("commit") not in parent_hashes else "_"
+            markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
+        markdown_output += "\n"
+
+    # Removed Branches
+    for branch in removed_branches:
+        parent_commit = parent_branches[branch].get("latest_commit", "unknown")
+        markdown_output += f"- **{branch}** (was `{parent_commit}`)\n"
+
+    markdown_output += "\n"
+    return markdown_output
+
+def generate_markdown_for_commits(
+    tracking_commits, repo_config, repo_categories, events, category_filter=None
+) -> str:
+    """
+    Generate markdown content for commits.
+    If category_filter is None, include all repos.
+    If category_filter is a string, include only repos belonging to that category.
+    """
+    markdown_output = "# Zimbra Tracker – Changes Timeline\n\n"
+
+    # Add events
+    markdown_output += "## Events\n\n"
+    for ev in events:
+        markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
+
+    # Traverse commits **newest to oldest**
+    for commit_hash in reversed(tracking_commits):
+        # Get parent commits
+        parents_line = run_cmd(
+            ["git", "rev-list", "--parents", "-n", "1", commit_hash],
+            cwd=TRACKING_WORKTREE_DIR
+        ).split()
+        commit_parents = parents_line[1:]  # skip the commit itself
+
+        if not commit_parents:
+            commit_time = run_cmd(
+                ["git", "show", "-s", "--format=%ci", commit_hash],
+                cwd=TRACKING_WORKTREE_DIR
+            ).strip()
+            markdown_output += f"## Very first commit ({commit_time})\n\nIgnored on purpose.\n\n"
+            continue
+
+        parent_hash = commit_parents[0]
+        commit_time = run_cmd(
+            ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
+        )
+        markdown_output += f"## Snapshot {commit_time}\n\n"
+
+        # --- Repository detection ---
+        current_repos_raw = read_tracking_file(commit_hash, "all-repos.json")
+        parent_repos_raw = read_tracking_file(parent_hash, "all-repos.json")
+
+        try:
+            current_repos = json.loads(current_repos_raw) if current_repos_raw else []
+        except json.JSONDecodeError:
+            current_repos = []
+        try:
+            parent_repos = json.loads(parent_repos_raw) if parent_repos_raw else []
+        except json.JSONDecodeError:
+            parent_repos = []
+
+        new_repos = sorted(set(current_repos) - set(parent_repos))
+        removed_repos = sorted(set(parent_repos) - set(current_repos))
+
+        if new_repos or removed_repos:
+            markdown_output += "### 🧭 Repository Changes\n\n"
+
+            if new_repos:
+                markdown_output += "#### 🆕 New Repositories Detected\n\n"
+                for repo_id in new_repos:
+                    if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                        continue
+                    categories_str = ", ".join(repo_categories.get(repo_id, ["uncategorized"]))
+                    markdown_output += f"- **{repo_id} ({categories_str})**\n"
+                markdown_output += "\n"
+
+            if removed_repos:
+                markdown_output += "#### 🗑️ Repositories Removed\n\n"
+                for repo_id in removed_repos:
+                    if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                        continue
+                    markdown_output += f"- **{repo_id}**\n"
+                markdown_output += "\n"
+
+        # --- Global tags changes ---
+        current_tags_raw = read_tracking_file(commit_hash, "all-tags.txt")
+        parent_tags_raw = read_tracking_file(parent_hash, "all-tags.txt")
+
+        current_tags = [t.strip() for t in current_tags_raw.splitlines() if t.strip()] if current_tags_raw else []
+        parent_tags = [t.strip() for t in parent_tags_raw.splitlines() if t.strip()] if parent_tags_raw else []
+
+        new_global_tags = sorted(set(current_tags) - set(parent_tags))
+        removed_global_tags = sorted(set(parent_tags) - set(current_tags))
+
+        if new_global_tags or removed_global_tags:
+            markdown_output += "### 🏷️ Global Tags Changes\n\n"
+
+            if new_global_tags:
+                markdown_output += "#### 🆕 New Global Tags\n\n"
+                for tag in new_global_tags:
+                    markdown_output += f"- **{tag}**\n"
+                markdown_output += "\n"
+
+            if removed_global_tags:
+                markdown_output += "#### 🗑️ Removed Global Tags\n\n"
+                for tag in removed_global_tags:
+                    markdown_output += f"- **{tag}**\n"
+                markdown_output += "\n"
+
+        # --- Repository-specific tag & branch changes ---
+        all_repos = sorted(set(current_repos))
+        for repo_id in all_repos:
+            if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                continue
+
+            # Tag changes
+            markdown_output = generate_repo_tag_changes(
+                markdown_output, repo_config, repo_categories, repo_id, commit_hash, parent_hash
+            )
+
+            # Branch changes
+            markdown_output = generate_repo_branch_changes(
+                markdown_output, repo_config, repo_categories, repo_id, commit_hash, parent_hash
+            )
+
+    return markdown_output
+
 # --- Main logic ---
 def main():
 
@@ -469,400 +871,44 @@ def main():
         markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
 
     repo_config = load_repo_config("tracked_repos.list")
-
-    # Traverse commits **newest to oldest** to produce snapshots
-    for commit_hash in reversed(tracking_commits):
-
-        # Get parent commits
-        parents_line = run_cmd(
-            ["git", "rev-list", "--parents", "-n", "1", commit_hash],
-            cwd=TRACKING_WORKTREE_DIR
-        ).split()
-        commit_parents = parents_line[1:]  # skip the commit itself
-
-        # Handle the "very first commit" (no parents at all)
-        if not commit_parents:
-            commit_time = run_cmd(
-                ["git", "show", "-s", "--format=%ci", commit_hash],
-                cwd=TRACKING_WORKTREE_DIR
-            ).strip()
-            markdown_output += f"## Very first commit ({commit_time})\n\nIgnored on purpose.\n\n"
-            continue
-
-        # Handle regular snapshot
-        parent_hash = commit_parents[0]
-        commit_time = run_cmd(
-            ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
-        )
-        markdown_output += f"## Snapshot {commit_time}\n\n"
-
-        # --- Repository detection (based on all-repos.json) ---
-        current_repos_raw = read_tracking_file(commit_hash, "all-repos.json")
-        parent_repos_raw = read_tracking_file(parent_hash, "all-repos.json")
-
-        try:
-            current_repos = json.loads(current_repos_raw) if current_repos_raw else []
-        except json.JSONDecodeError:
-            current_repos = []
-        try:
-            parent_repos = json.loads(parent_repos_raw) if parent_repos_raw else []
-        except json.JSONDecodeError:
-            parent_repos = []
-
-        new_repos = sorted(set(current_repos) - set(parent_repos))
-        removed_repos = sorted(set(parent_repos) - set(current_repos))
-
-        if new_repos or removed_repos:
-            markdown_output += "### 🧭 Repository Changes\n\n"
-
-            if new_repos:
-                markdown_output += "#### 🆕 New Repositories Detected\n\n"
-                for repo_id in new_repos:
-                    markdown_output += (
-                        f"- **{repo_id}**\n"
-                    )
-                markdown_output += "\n"
-
-            if removed_repos:
-                markdown_output += "#### 🗑️ Repositories Removed\n\n"
-                for repo_id in removed_repos:
-                    markdown_output += f"- **{repo_id}**\n"
-                markdown_output += "\n"
-
-        # --- Global tags changes (based on all-tags.txt) ---
-        current_tags_raw = read_tracking_file(commit_hash, "all-tags.txt")
-        parent_tags_raw = read_tracking_file(parent_hash, "all-tags.txt")
-
-        current_tags = [t.strip() for t in current_tags_raw.splitlines() if t.strip()] if current_tags_raw else []
-        parent_tags = [t.strip() for t in parent_tags_raw.splitlines() if t.strip()] if parent_tags_raw else []
-
-        new_global_tags = sorted(set(current_tags) - set(parent_tags))
-        removed_global_tags = sorted(set(parent_tags) - set(current_tags))
-
-        if new_global_tags or removed_global_tags:
-            markdown_output += "### 🏷️ Global Tags Changes\n\n"
-
-            if new_global_tags:
-                markdown_output += "#### 🆕 New Global Tags\n\n"
-                for tag in new_global_tags:
-                    markdown_output += f"- **{tag}**\n"
-                markdown_output += "\n"
-
-            if removed_global_tags:
-                markdown_output += "#### 🗑️ Removed Global Tags\n\n"
-                for tag in removed_global_tags:
-                    markdown_output += f"- **{tag}**\n"
-                markdown_output += "\n"
-
-        # --- Repository tag changes ---
-        all_repos = sorted(set(current_repos))  # Sort repos alphabetically
-        for repo_id in all_repos:
-            current_tags_raw = read_tracking_file(
-                commit_hash, f"repos/{repo_id}/tags-manifest.json"
-            )
-            parent_tags_raw = read_tracking_file(
-                parent_hash, f"repos/{repo_id}/tags-manifest.json"
-            )
-
-            try:
-                current_tags = json.loads(current_tags_raw) if current_tags_raw else {}
-            except json.JSONDecodeError:
-                current_tags = {}
-
-            try:
-                parent_tags = json.loads(parent_tags_raw) if parent_tags_raw else {}
-            except json.JSONDecodeError:
-                parent_tags = {}
-
-            # --- Detect tag differences ---
-            new_tags = []
-            changed_tags = []
-            removed_tags = []
-
-            # Detect new and changed tags
-            for tag_name, tag_data in current_tags.items():
-                if tag_name not in parent_tags:
-                    new_tags.append(tag_name)
-                else:
-                    parent_commit = parent_tags[tag_name].get("latest_commit")
-                    current_commit = tag_data.get("latest_commit")
-                    if parent_commit != current_commit:
-                        changed_tags.append(tag_name)
-
-            # Detect removed tags
-            for tag_name in parent_tags.keys():
-                if tag_name not in current_tags:
-                    removed_tags.append(tag_name)
-
-            # --- Output if there are differences ---
-            if new_tags or changed_tags or removed_tags:
-                markdown_output += f"### 🏷️ Tag Changes in **{repo_id}**\n\n"
-
-                # 🆕 New Tags with latest commits
-                if new_tags:
-                    markdown_output += "#### 🆕 New Tags\n\n"
-                    for tag in new_tags:
-
-                        cfg = repo_config.get(repo_id, {})
-                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
-                        platform = cfg.get("platform", "github")
-                        links = make_repo_links(base, platform, repo_id, tag)
-
-                        markdown_output += f"- **[{tag}]({links['ref']})** | [Tag]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
-
-                        if snapshot_mode:
-                            snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
-                            snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
-                            markdown_output += f" | [Snapshot Tag]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
-
-                        markdown_output += " | Recent commits 👇\n"
-
-                        tag_file = current_tags[tag].get("file")
-                        if tag_file:
-                            tag_file_path = f"repos/{repo_id}/tags/{tag_file}"
-                            markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, tag, tag_file_path, "")
-                    markdown_output += "\n"
-
-                    markdown_output += "\n"
-
-                # 🔄 Updated Tags
-                if changed_tags:
-                    markdown_output += "#### 🔄 Updated Tags\n\n"
-                    for tag in changed_tags:
-
-                        cfg = repo_config.get(repo_id, {})
-                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
-                        platform = cfg.get("platform", "github")
-                        links = make_repo_links(base, platform, repo_id, tag)
-
-                        parent_commit_hash = parent_tags[tag].get("latest_commit")
-                        current_commit_hash = current_tags[tag].get("latest_commit")
-
-                        markdown_output += f"- **[{tag}]({links['ref']})** | [Tag]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
-
-                        if snapshot_mode:
-                            snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
-                            snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
-                            markdown_output += f" | [Snapshot Tag]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
-
-                        markdown_output += f" | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
-
-                        # (existing commit diff logic remains unchanged below)
-                        parent_tag_file = parent_tags[tag].get("file")
-                        parent_commits = []
-                        if parent_tag_file:
-                            parent_file_path = f"repos/{repo_id}/tags/{parent_tag_file}"
-                            parent_content = read_tracking_file(parent_hash, parent_file_path)
-                            if parent_content:
-                                for line in parent_content.splitlines():
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    try:
-                                        parent_commits.append(json.loads(line))
-                                    except json.JSONDecodeError:
-                                        continue
-                                parent_commits = parent_commits[-5:][::-1]  # newest first
-                        parent_hashes = {c.get("commit") for c in parent_commits}
-
-                        # --- Load last 5 current commits ---
-                        current_tag_file = current_tags[tag].get("file")
-                        current_commits = []
-                        if current_tag_file:
-                            current_file_path = f"repos/{repo_id}/tags/{current_tag_file}"
-                            current_content = read_tracking_file(commit_hash, current_file_path)
-                            if current_content:
-                                for line in current_content.splitlines():
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    try:
-                                        current_commits.append(json.loads(line))
-                                    except json.JSONDecodeError:
-                                        continue
-                                current_commits = current_commits[-5:][::-1]  # newest first
-
-                        # --- Determine overlap ---
-                        current_hashes = {c.get("commit") for c in current_commits}
-                        intersection = parent_hashes & current_hashes
-                        no_overlap = len(intersection) == 0
-
-                        # --- Output current commits ---
-                        for commit in current_commits:
-                            if no_overlap:
-                                prefix = "n"
-                            else:
-                                prefix = "N" if commit.get("commit") not in parent_hashes else "_"
-                            markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
-
-                        markdown_output += "\n"
-
-                # 🗑️ Removed Tags
-                if removed_tags:
-                    markdown_output += "#### 🗑️ Removed Tags\n\n"
-                    for tag in removed_tags:
-                        parent_commit = parent_tags[tag].get("latest_commit", "unknown")
-                        markdown_output += f"- **{tag}** (was `{parent_commit}`)\n"
-                    markdown_output += "\n"
-
-        # --- Repository branch changes ---
-        all_repos = sorted(set(current_repos))  # Sort repos alphabetically
-        for repo_id in all_repos:
-            current_branches_raw = read_tracking_file(
-                commit_hash, f"repos/{repo_id}/branches-manifest.json"
-            )
-            parent_branches_raw = read_tracking_file(
-                parent_hash, f"repos/{repo_id}/branches-manifest.json"
-            )
-
-            try:
-                current_branches = json.loads(current_branches_raw) if current_branches_raw else {}
-            except json.JSONDecodeError:
-                current_branches = {}
-
-            try:
-                parent_branches = json.loads(parent_branches_raw) if parent_branches_raw else {}
-            except json.JSONDecodeError:
-                parent_branches = {}
-
-            # --- Detect branch differences ---
-            new_branches = []
-            changed_branches = []
-            removed_branches = []
-
-            for branch_name, branch_data in current_branches.items():
-                if branch_name not in parent_branches:
-                    new_branches.append(branch_name)
-                else:
-                    parent_commit = parent_branches[branch_name].get("latest_commit")
-                    current_commit = branch_data.get("latest_commit")
-                    if parent_commit != current_commit:
-                        changed_branches.append(branch_name)
-
-            for branch_name in parent_branches.keys():
-                if branch_name not in current_branches:
-                    removed_branches.append(branch_name)
-
-            # Sort branches alphabetically for consistent display
-            new_branches.sort()
-            changed_branches.sort()
-            removed_branches.sort()
-
-            # --- Output if there are differences ---
-            if new_branches or changed_branches or removed_branches:
-                markdown_output += f"### 🌿 Branch Changes in **{repo_id}**\n\n"
-
-                # 🆕 New Branches
-                if new_branches:
-                    markdown_output += "#### 🆕 New Branches\n\n"
-                    for branch in new_branches:
-                        cfg = repo_config.get(repo_id, {})
-                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
-                        platform = cfg.get("platform", "github")
-                        links = make_repo_links(base, platform, repo_id, branch, type="branch")
-
-                        markdown_output += f"- **[{branch}]({links['ref']})** | [Branch]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
-
-                        if snapshot_mode:
-                            snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
-                            snapshot_links = make_repo_links(snapshot_base, platform, repo_id, branch, type="branch")
-                            markdown_output += f" | [Snapshot Branch]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
-
-                        markdown_output += " | Recent commits 👇\n"
-
-                        branch_file = current_branches[branch].get("file")
-                        if branch_file:
-                            branch_file_path = f"repos/{repo_id}/branches/{branch_file}"
-                            markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, branch, branch_file_path, "")
-                    markdown_output += "\n"
-
-                # 🔄 Updated Branches
-                if changed_branches:
-                    markdown_output += "#### 🔄 Updated Branches\n\n"
-                    for branch in changed_branches:
-                        cfg = repo_config.get(repo_id, {})
-                        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
-                        platform = cfg.get("platform", "github")
-                        links = make_repo_links(base, platform, repo_id, branch, type="branch")
-
-                        parent_commit_hash = parent_branches[branch].get("latest_commit")
-                        current_commit_hash = current_branches[branch].get("latest_commit")
-
-                        markdown_output += f"- **[{branch}]({links['ref']})** | [Branch]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']})"
-
-                        if snapshot_mode:
-                            snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
-                            snapshot_links = make_repo_links(snapshot_base, platform, repo_id, branch, type="branch")
-                            markdown_output += f" | [Snapshot Branch]({snapshot_links['ref']}) | [Tree]({snapshot_links['tree']}) | [Commits]({snapshot_links['commits']})"
-
-                        markdown_output += f" | [Previous target]({parent_commit_hash}) | Recent commits 👇\n"
-
-                        # --- Load parent commits ---
-                        parent_branch_file = parent_branches[branch].get("file")
-                        parent_commits = []
-                        if parent_branch_file:
-                            parent_file_path = f"repos/{repo_id}/branches/{parent_branch_file}"
-                            parent_content = read_tracking_file(parent_hash, parent_file_path)
-                            if parent_content:
-                                for line in parent_content.splitlines():
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    try:
-                                        parent_commits.append(json.loads(line))
-                                    except json.JSONDecodeError:
-                                        continue
-                                parent_commits = parent_commits[-5:][::-1]  # newest first
-                        parent_hashes = {c.get("commit") for c in parent_commits}
-
-                        # --- Load last 5 current commits ---
-                        current_branch_file = current_branches[branch].get("file")
-                        current_commits = []
-                        if current_branch_file:
-                            current_file_path = f"repos/{repo_id}/branches/{current_branch_file}"
-                            current_content = read_tracking_file(commit_hash, current_file_path)
-                            if current_content:
-                                for line in current_content.splitlines():
-                                    line = line.strip()
-                                    if not line:
-                                        continue
-                                    try:
-                                        current_commits.append(json.loads(line))
-                                    except json.JSONDecodeError:
-                                        continue
-                                current_commits = current_commits[-5:][::-1]  # newest first
-
-                        # --- Determine overlap ---
-                        current_hashes = {c.get("commit") for c in current_commits}
-                        intersection = parent_hashes & current_hashes
-                        no_overlap = len(intersection) == 0
-
-                        # --- Output current commits ---
-                        for commit in current_commits:
-                            if no_overlap:
-                                prefix = "n"
-                            else:
-                                prefix = "N" if commit.get("commit") not in parent_hashes else "_"
-                            markdown_output += format_commit(repo_config, commit, repo_id, prefix=prefix)
-
-                        markdown_output += "\n"
-
-                # 🗑️ Removed Branches
-                if removed_branches:
-                    markdown_output += "#### 🗑️ Removed Branches\n\n"
-                    for branch in removed_branches:
-                        parent_commit = parent_branches[branch].get("latest_commit", "unknown")
-                        markdown_output += f"- **{branch}** (was `{parent_commit}`)\n"
-                    markdown_output += "\n"
-
-    # Write markdown file
+    tracked_repo_ids = list(repo_config.keys())
+    repo_categories = load_categories("categories.yaml", tracked_repo_ids)
+
+    # --- Generate full timeline ---
+    markdown_output = generate_markdown_for_commits(
+        tracking_commits, repo_config, repo_categories, events
+    )
+
+    # Write changes_timeline.md
     os.makedirs(MARKDOWN_WORKTREE_DIR, exist_ok=True)
-    output_file = os.path.join(MARKDOWN_WORKTREE_DIR, "changes_timeline.md")
-    with open(output_file, "w") as f:
+    timeline_file = os.path.join(MARKDOWN_WORKTREE_DIR, "changes_timeline.md")
+    with open(timeline_file, "w") as f:
         f.write(markdown_output)
 
+    # --- Write per-category files ---
+    categories_dir = os.path.join(MARKDOWN_WORKTREE_DIR, "categories")
+    os.makedirs(categories_dir, exist_ok=True)
+
+    # _index.md
+    index_file = os.path.join(categories_dir, "_index.md")
+    with open(index_file, "w") as f:
+        f.write("# Categories Index\n\n")
+        for category in sorted(set(sum(repo_categories.values(), []))):  # flatten and unique
+            f.write(f"- [{category}](./{category}.md)\n")
+
+    # Each category file
+    for category in sorted(set(sum(repo_categories.values(), []))):
+        category_file = os.path.join(categories_dir, f"{category}.md")
+        category_markdown = generate_markdown_for_commits(
+            tracking_commits, repo_config, repo_categories, events, category_filter=category
+        )
+        with open(category_file, "w") as f:
+            f.write(category_markdown)
+
+    # Commit timeline + categories
     if has_changes(MARKDOWN_WORKTREE_DIR):
         run_cmd(["git", "add", "changes_timeline.md"], cwd=MARKDOWN_WORKTREE_DIR)
+        run_cmd(["git", "add", "categories"], cwd=MARKDOWN_WORKTREE_DIR)
         run_cmd(
             ["git", "commit", "-m", f"Update markdown changes ({datetime.now().isoformat()})"],
             cwd=MARKDOWN_WORKTREE_DIR,
