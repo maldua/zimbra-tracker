@@ -466,6 +466,123 @@ def ensure_snapshot_remote_repo(repo_id, source_organization):
     print(f"✅ Fork {gh_repo_ref} ready for use.")
     return remote_repo
 
+def generate_markdown_for_commits(
+    tracking_commits, repo_config, repo_categories, events, category_filter=None
+) -> str:
+    """
+    Generate markdown content for commits.
+    If category_filter is None, include all repos.
+    If category_filter is a string, include only repos belonging to that category.
+    """
+    markdown_output = "# Zimbra Tracker – Changes Timeline\n\n"
+
+    # Add events
+    markdown_output += "## Events\n\n"
+    for ev in events:
+        markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
+
+    # Traverse commits **newest to oldest**
+    for commit_hash in reversed(tracking_commits):
+        # Get parent commits
+        parents_line = run_cmd(
+            ["git", "rev-list", "--parents", "-n", "1", commit_hash],
+            cwd=TRACKING_WORKTREE_DIR
+        ).split()
+        commit_parents = parents_line[1:]  # skip the commit itself
+
+        if not commit_parents:
+            commit_time = run_cmd(
+                ["git", "show", "-s", "--format=%ci", commit_hash],
+                cwd=TRACKING_WORKTREE_DIR
+            ).strip()
+            markdown_output += f"## Very first commit ({commit_time})\n\nIgnored on purpose.\n\n"
+            continue
+
+        parent_hash = commit_parents[0]
+        commit_time = run_cmd(
+            ["git", "show", "-s", "--format=%ci", commit_hash], cwd=TRACKING_WORKTREE_DIR
+        )
+        markdown_output += f"## Snapshot {commit_time}\n\n"
+
+        # --- Repository detection ---
+        current_repos_raw = read_tracking_file(commit_hash, "all-repos.json")
+        parent_repos_raw = read_tracking_file(parent_hash, "all-repos.json")
+
+        try:
+            current_repos = json.loads(current_repos_raw) if current_repos_raw else []
+        except json.JSONDecodeError:
+            current_repos = []
+        try:
+            parent_repos = json.loads(parent_repos_raw) if parent_repos_raw else []
+        except json.JSONDecodeError:
+            parent_repos = []
+
+        new_repos = sorted(set(current_repos) - set(parent_repos))
+        removed_repos = sorted(set(parent_repos) - set(current_repos))
+
+        if new_repos or removed_repos:
+            markdown_output += "### 🧭 Repository Changes\n\n"
+
+            if new_repos:
+                markdown_output += "#### 🆕 New Repositories Detected\n\n"
+                for repo_id in new_repos:
+                    if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                        continue
+                    categories_str = ", ".join(repo_categories.get(repo_id, ["uncategorized"]))
+                    markdown_output += f"- **{repo_id} ({categories_str})**\n"
+                markdown_output += "\n"
+
+            if removed_repos:
+                markdown_output += "#### 🗑️ Repositories Removed\n\n"
+                for repo_id in removed_repos:
+                    if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                        continue
+                    markdown_output += f"- **{repo_id}**\n"
+                markdown_output += "\n"
+
+        # --- Global tags changes ---
+        current_tags_raw = read_tracking_file(commit_hash, "all-tags.txt")
+        parent_tags_raw = read_tracking_file(parent_hash, "all-tags.txt")
+
+        current_tags = [t.strip() for t in current_tags_raw.splitlines() if t.strip()] if current_tags_raw else []
+        parent_tags = [t.strip() for t in parent_tags_raw.splitlines() if t.strip()] if parent_tags_raw else []
+
+        new_global_tags = sorted(set(current_tags) - set(parent_tags))
+        removed_global_tags = sorted(set(parent_tags) - set(current_tags))
+
+        if new_global_tags or removed_global_tags:
+            markdown_output += "### 🏷️ Global Tags Changes\n\n"
+
+            if new_global_tags:
+                markdown_output += "#### 🆕 New Global Tags\n\n"
+                for tag in new_global_tags:
+                    markdown_output += f"- **{tag}**\n"
+                markdown_output += "\n"
+
+            if removed_global_tags:
+                markdown_output += "#### 🗑️ Removed Global Tags\n\n"
+                for tag in removed_global_tags:
+                    markdown_output += f"- **{tag}**\n"
+                markdown_output += "\n"
+
+        # --- Repository-specific tag & branch changes ---
+        all_repos = sorted(set(current_repos))
+        for repo_id in all_repos:
+            if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                continue
+
+            # Tag changes
+            markdown_output = generate_repo_tag_changes(
+                markdown_output, repo_config, repo_id, commit_hash, parent_hash
+            )
+
+            # Branch changes
+            markdown_output = generate_repo_branch_changes(
+                markdown_output, repo_config, repo_id, commit_hash, parent_hash
+            )
+
+    return markdown_output
+
 # --- Main logic ---
 def main():
 
