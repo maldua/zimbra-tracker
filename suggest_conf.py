@@ -27,14 +27,15 @@ SUGGESTED_CATEGORIES="categories.yaml.suggested"
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 if not GITHUB_TOKEN:
-    print("Error: Please set the GITHUB_TOKEN environment variable.")
-    sys.exit(1)
+    print("Warning: GITHUB_TOKEN not set. You will only be able to fetch public repositories.")
 
 API_URL = "https://api.github.com"
 
 def fetch_repos(org):
     """Fetch public repositories for a GitHub organization."""
-    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    headers = {}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
     repos = []
     page = 1
     while True:
