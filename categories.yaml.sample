@@ -1,0 +1,57 @@
+# categories.yaml
+# Structured category definitions for Zimbra tracked repositories.
+# Each category has a description (Markdown allowed), a priority for ordering, and a list of repo identifiers.
+
+categories:
+
+  foss:
+    description: |
+      Packages part of ZCS FOSS
+    priority: 3
+    repos:
+      - zm-mailbox
+
+  modern:
+    description: |
+      Related to modern UI and everything that current ZCS Network Edition is using
+      but that it's not actively used in ZCS FOSS.
+    priority: 3
+    repos:
+      - zm-x-ui
+
+  core:
+    description: |
+      **Core repositories** required for the main Zimbra server functionality.
+    priority: 1
+    repos:
+      - zm-core-utils
+
+  build_tools:
+    description: |
+      Repositories related to **building, packaging, and deployment** of Zimbra.
+      Includes build scripts and automation tools.
+    priority: 2
+    repos:
+      - zm-build
+
+  optional:
+    description: |
+      Optional components, extensions, or add-ons.
+      Can be included if the environment requires additional features.
+    priority: 3
+    repos:
+      - zimbra-zimlet-nextcloud
+
+  legacy:
+    description: |
+      Older, archived or deprecated repositories.
+    priority: 99
+    repos:
+      - zm-docker-1
+
+  uncategorized:
+    description: |
+      Repositories that have not been assigned to any category yet.
+      These may be new, experimental, or awaiting classification.
+    priority: 100
+    repos: []
