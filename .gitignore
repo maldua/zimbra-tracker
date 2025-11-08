@@ -3,3 +3,4 @@ tmp_repos/
 # Local config for generate_changes.py
 config.py
 categories.yaml
+tracked_repos.list
