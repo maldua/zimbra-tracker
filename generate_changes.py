@@ -29,6 +29,7 @@ import shutil
 import requests
 import time
 import sys
+from refname_utils import run_throttled_git_cmd, github_api_request
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -51,6 +52,9 @@ except ImportError:
     # fallback defaults
     SNAPSHOT_ORG = ""
     snapshot_mode = False
+
+_last_api_call_time = 0
+_API_CALL_INTERVAL = 1.5  # seconds between requests
 
 # --- Helpers ---
 def run_cmd(cmd, cwd=None):
@@ -370,7 +374,7 @@ def prepare_working_clone(repo_id):
         subprocess.run(["rm", "-rf", work_dir], check=True)
     os.makedirs(TMP_WORK_DIR, exist_ok=True)
     # clone from mirror (mirror is bare); make a normal clone from it
-    subprocess.run(["git", "clone", "--no-local", mirror_path, work_dir], check=True)
+    run_throttled_git_cmd(["git", "clone", "--no-local", mirror_path, work_dir], check=True)
     return work_dir
 
 def wait_for_repo_ready(org, repo, token, timeout=60, interval=3):
@@ -382,7 +386,7 @@ def wait_for_repo_ready(org, repo, token, timeout=60, interval=3):
     url = f"https://api.github.com/repos/{org}/{repo}"
 
     for i in range(int(timeout / interval)):
-        resp = requests.get(url, headers=headers)
+        resp = github_api_request("GET", url, headers=headers)
         if resp.status_code == 200:
             print(f"✅ Repo {org}/{repo} is ready on GitHub.")
             return True
@@ -406,7 +410,7 @@ def ensure_snapshot_remote_repo(repo_id, source_organization):
     gh_repo_ref = f"{SNAPSHOT_ORG}/{repo_id}"
 
     # Check if repo already exists
-    resp = requests.get(f"https://api.github.com/repos/{gh_repo_ref}", headers=headers)
+    resp = github_api_request("GET", f"https://api.github.com/repos/{gh_repo_ref}", headers=headers)
     if resp.status_code == 200:
         print(f"✅ Repo {gh_repo_ref} already exists on GitHub.")
         return remote_repo
@@ -414,7 +418,8 @@ def ensure_snapshot_remote_repo(repo_id, source_organization):
     print(f"🚀 Creating fork {gh_repo_ref} from {source_organization}/{repo_id} via GitHub API...")
 
     fork_payload = {"organization": SNAPSHOT_ORG}
-    create_resp = requests.post(
+    create_resp = github_api_request(
+        "POST",
         f"https://api.github.com/repos/{source_organization}/{repo_id}/forks",
         headers=headers,
         json=fork_payload
@@ -1019,8 +1024,8 @@ def main():
                             remote_repo_url_with_token = remote_repo_url
 
                         # --- Push all local branches and tags (force) ---
-                        subprocess.run(["git", "push", "--force", remote_repo_url_with_token, "--all"], cwd=work_dir, check=True)
-                        subprocess.run(["git", "push", "--force", remote_repo_url_with_token, "--tags"], cwd=work_dir, check=True)
+                        run_throttled_git_cmd(["git", "push", "--force", remote_repo_url_with_token, "--all"], cwd=work_dir, check=True)
+                        run_throttled_git_cmd(["git", "push", "--force", remote_repo_url_with_token, "--tags"], cwd=work_dir, check=True)
                         print(f"✅ Pushed snapshots and all refs for {repo_id}")
 
     if os.path.exists(TMP_WORK_DIR):

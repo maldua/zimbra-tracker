@@ -3,3 +3,12 @@
 
 SNAPSHOT_ORG = "your-snapshot-org"
 SNAPSHOT_MODE = False
+
+# ----------------------
+# Throttling variables
+# ----------------------
+_last_git_call_time = 0
+_GIT_CALL_INTERVAL = 0.5  # seconds between git commands
+
+_last_api_call_time = 0
+_API_CALL_INTERVAL = 1  # seconds between GitHub API calls

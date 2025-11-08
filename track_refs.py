@@ -31,6 +31,8 @@ import json
 import shutil
 from datetime import datetime
 from refname_utils import branch_file_path, tag_file_path, safe_refname_to_filename, filename_to_refname
+from refname_utils import run_throttled_git_cmd
+import time
 
 # Paths
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -74,7 +76,7 @@ def ensure_tracking_worktree():
         print("Tracking worktree already exists, updating...")
         # Ensure it's up to date
         run(["git", "checkout", "tracking"], cwd=TRACKING_WORKTREE_DIR)
-        run(["git", "pull"], cwd=TRACKING_WORKTREE_DIR, capture=False)
+        run_throttled_git_cmd(["git", "pull"], cwd=TRACKING_WORKTREE_DIR, capture=False)
 
 def read_tracked_repos():
     """Read the repo list file and return list of (repo_id, clone_url, platform)"""
@@ -100,10 +102,10 @@ def ensure_repo_cloned(repo_id, clone_url):
     path = os.path.join(TMP_REPOS_DIR, repo_id)
     if not os.path.exists(path):
         print(f"Cloning {repo_id}...")
-        subprocess.run(["git", "clone", "--mirror", clone_url, path], check=True)
+        run_throttled_git_cmd(["git", "clone", "--mirror", clone_url, path], check=True)
     else:
         print(f"Fetching updates for {repo_id}...")
-        subprocess.run(["git", "fetch", "--all"], cwd=path, check=True)
+        run_throttled_git_cmd(["git", "fetch", "--all"], cwd=path, check=True)
     return path
 
 def export_ref_commits(repo_path, ref_name, file_path, manifest):
