@@ -1,4 +1,6 @@
 __pycache__/
 tmp_repos/
 # Local config for generate_changes.py
-config.py
+/config.py
+/categories.yaml
+/tracked_repos.list
