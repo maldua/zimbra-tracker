@@ -829,12 +829,12 @@ def generate_markdown_for_commits(
 
             # Tag changes
             markdown_output = generate_repo_tag_changes(
-                markdown_output, repo_config, repo_id, commit_hash, parent_hash
+                markdown_output, repo_config, repo_categories, repo_id, commit_hash, parent_hash
             )
 
             # Branch changes
             markdown_output = generate_repo_branch_changes(
-                markdown_output, repo_config, repo_id, commit_hash, parent_hash
+                markdown_output, repo_config, repo_categories, repo_id, commit_hash, parent_hash
             )
 
     return markdown_output
