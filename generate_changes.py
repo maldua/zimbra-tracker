@@ -74,6 +74,35 @@ def detect_git_platform(url):
     else:
         return "unknown"
 
+def load_categories(categories_file="categories.yaml", tracked_repo_ids=None):
+    """
+    Returns a dict mapping repo_id -> list of categories.
+    Any repo_id not listed in categories.yaml gets ['uncategorized'].
+    Only repo_ids present in tracked_repo_ids are included.
+    """
+    if tracked_repo_ids is None:
+        tracked_repo_ids = []
+
+    with open(categories_file, "r") as f:
+        data = yaml.safe_load(f)
+
+    # category -> list of repos
+    category_map = data.get("categories", {})
+    repo_to_categories = {}
+
+    for category_name, category_data in category_map.items():
+        repos = category_data.get("repos", [])
+        for repo_id in repos:
+            if repo_id in tracked_repo_ids:
+                repo_to_categories.setdefault(repo_id, []).append(category_name)
+
+    # assign uncategorized if no category found
+    for repo_id in tracked_repo_ids:
+        if repo_id not in repo_to_categories:
+            repo_to_categories[repo_id] = ["uncategorized"]
+
+    return repo_to_categories
+
 def load_repo_config(filepath="tracked_repos.list"):
     """Load repository URL and platform info."""
     repos = {}
@@ -469,6 +498,8 @@ def main():
         markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
 
     repo_config = load_repo_config("tracked_repos.list")
+    tracked_repo_ids = list(repo_config.keys())
+    repo_categories = load_categories("categories.yaml", tracked_repo_ids)
 
     # Traverse commits **newest to oldest** to produce snapshots
     for commit_hash in reversed(tracking_commits):
