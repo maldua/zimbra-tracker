@@ -36,7 +36,7 @@ import time
 
 # Paths
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
-REPO_LIST_FILE = "zimbra_tracked_repos.txt"
+REPO_LIST_FILE = "tracked_repos.list"
 REPOS_DIR = os.path.join(TRACKING_WORKTREE_DIR, "repos")
 TMP_REPOS_DIR = "tmp_repos"  # temporary clone location (ignored by git)
 
