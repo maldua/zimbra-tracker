@@ -12,6 +12,46 @@ Aimed at tracking Zimbra Github organization repos specifically.
 
 ---
 
+## Configuration
+
+The Repository tracking system uses three main configuration files:
+
+1. **`config.py`** – Defines general settings such as snapshot mode and the destination organization.
+2. **`tracked_repos.list`** – Lists the repositories to track, including their Git clone URLs and optional platform information.
+3. **`categories.yaml`** – Organizes repositories into categories with descriptions, priorities, and assigned repo identifiers.
+
+### Using Sample Files
+
+We provide sample files as templates:
+
+- `config.py.sample`
+- `tracked_repos.list.sample`
+- `categories.yaml.sample`
+
+You can use these sample files as a guide to create your own configuration files. Simply copy the sample, adjust the values for your organization, repositories, and categories, and save them without the `.sample` extension (e.g., `config.py`, `tracked_repos.list`, `categories.yaml`).
+
+### Generating Suggested Configuration Files
+
+Optionally, you can use the `suggest_conf.py` script to generate suggested configuration files automatically. This can help you get started quickly with defaults based on a public GitHub organization.
+
+Example usage:
+
+```bash
+python3 suggest_conf.py Zimbra maldua-zimbra-snapshot True
+```
+
+- Zimbra – The source GitHub organization to fetch repositories from (public).
+- maldua-zimbra-snapshot – The destination organization for snapshot mode (optional).
+- True – Enable snapshot mode (optional; defaults to False).
+
+The script will generate:
+
+- config.py.suggested
+- tracked_repos.list.suggested
+- categories.yaml.suggested
+
+You can review these suggested files, make any adjustments needed, and then copy them as your default configuration files.
+
 ## Setup
 
 This repo needs to write to a remote by default.
