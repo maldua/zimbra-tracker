@@ -74,7 +74,7 @@ def detect_git_platform(url):
     else:
         return "unknown"
 
-def load_repo_config(filepath="zimbra_tracked_repos.txt"):
+def load_repo_config(filepath="tracked_repos.list"):
     """Load repository URL and platform info."""
     repos = {}
     with open(filepath, "r") as f:
@@ -468,7 +468,7 @@ def main():
     for ev in events:
         markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
 
-    repo_config = load_repo_config("zimbra_tracked_repos.txt")
+    repo_config = load_repo_config("tracked_repos.list")
 
     # Traverse commits **newest to oldest** to produce snapshots
     for commit_hash in reversed(tracking_commits):
