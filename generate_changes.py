@@ -26,6 +26,9 @@ import json
 import re
 from urllib.parse import urlparse
 import shutil
+import requests
+import time
+import sys
 
 # --- Constants ---
 TRACKING_WORKTREE_DIR = "../zimbra-tracker-tracking"
@@ -370,81 +373,64 @@ def prepare_working_clone(repo_id):
     subprocess.run(["git", "clone", "--no-local", mirror_path, work_dir], check=True)
     return work_dir
 
-def ensure_snapshot_remote_repo(repo_id):
+def wait_for_repo_ready(org, repo, token, timeout=60, interval=3):
     """
-    Ensure that https://github.com/{SNAPSHOT_ORG}/{repo_id}.git exists.
-    - Uses `gh` CLI if available and authenticated.
-    - Falls back to GitHub REST API via curl if GITHUB_TOKEN is defined.
+    Polls until https://api.github.com/repos/{org}/{repo} returns 200 OK.
+    Returns True if ready, False otherwise.
     """
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    url = f"https://api.github.com/repos/{org}/{repo}"
+
+    for i in range(int(timeout / interval)):
+        resp = requests.get(url, headers=headers)
+        if resp.status_code == 200:
+            print(f"✅ Repo {org}/{repo} is ready on GitHub.")
+            return True
+        print(f"⏳ Waiting for {org}/{repo} to become available... ({i * interval}s)")
+        time.sleep(interval)
+
+    print(f"❌ Timeout waiting for {org}/{repo} to appear after {timeout}s.")
+    return False
+
+def ensure_snapshot_remote_repo(repo_id, source_organization):
+    """
+    Ensures that https://github.com/{SNAPSHOT_ORG}/{repo_id}.git exists.
+    - Uses the GitHub REST API to fork from source_organization into SNAPSHOT_ORG.
+    - Waits for fork completion before returning.
+    """
+    if not EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
+        raise RuntimeError("EXTERNAL_SNAPSHOT_GITHUB_TOKEN is not defined in the environment.")
+
+    headers = {"Authorization": f"Bearer {EXTERNAL_SNAPSHOT_GITHUB_TOKEN}", "Accept": "application/vnd.github+json"}
     remote_repo = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}.git"
     gh_repo_ref = f"{SNAPSHOT_ORG}/{repo_id}"
 
-    # --- Try GH CLI ---
-    try:
-        print(f"🔎 Checking if remote repo {gh_repo_ref} exists via gh CLI...")
-        subprocess.run(
-            ["gh", "repo", "view", gh_repo_ref],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True
-        )
+    # Check if repo already exists
+    resp = requests.get(f"https://api.github.com/repos/{gh_repo_ref}", headers=headers)
+    if resp.status_code == 200:
         print(f"✅ Repo {gh_repo_ref} already exists on GitHub.")
         return remote_repo
 
-    except FileNotFoundError:
-        print("⚠️  GitHub CLI (`gh`) not found. Falling back to API method if possible...")
-    except subprocess.CalledProcessError:
-        # Repo doesn't exist; try to create via gh CLI
-        try:
-            print(f"📦 Creating repo {gh_repo_ref} via `gh` CLI...")
-            subprocess.run(
-                ["gh", "repo", "create", gh_repo_ref, "--private", "--confirm"],
-                check=True
-            )
-            print(f"✅ Successfully created repo {gh_repo_ref} via gh CLI.")
-            return remote_repo
-        except FileNotFoundError:
-            print("⚠️  GitHub CLI (`gh`) not found during creation attempt.")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to create repo {gh_repo_ref} via gh CLI: {e}")
+    print(f"🚀 Creating fork {gh_repo_ref} from {source_organization}/{repo_id} via GitHub API...")
 
-    # --- Fallback to GitHub REST API if EXTERNAL_SNAPSHOT_GITHUB_TOKEN is available ---
-    if EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
-        print(f"🌐 Falling back to GitHub REST API to create {gh_repo_ref}...")
-        import json
-        repo_data = {
-            "name": repo_id,
-            "private": True,
-            "auto_init": False
-        }
-        headers = [
-            "-H", f"Authorization: token {EXTERNAL_SNAPSHOT_GITHUB_TOKEN}",
-            "-H", "Accept: application/vnd.github+json"
-        ]
-        curl_cmd = [
-            "curl", "-s", "-X", "POST"
-        ] + headers + [
-            f"https://api.github.com/orgs/{SNAPSHOT_ORG}/repos",
-            "-d", json.dumps(repo_data)
-        ]
-
-        try:
-            result = subprocess.run(curl_cmd, check=True, capture_output=True, text=True)
-            if result.stdout.strip():
-                print(f"✅ Repo {gh_repo_ref} created successfully via API.")
-            else:
-                print(f"⚠️  API creation response empty — repo may already exist or failed silently.")
-            return remote_repo
-        except subprocess.CalledProcessError as e:
-            print(f"❌ GitHub API call failed for {gh_repo_ref}: {e}")
-            raise RuntimeError(
-                f"Failed to create repo {gh_repo_ref} via API. Check your EXTERNAL_SNAPSHOT_GITHUB_TOKEN permissions."
-            )
-
-    # --- Final fallback failure ---
-    raise RuntimeError(
-        f"Cannot ensure repo {gh_repo_ref}: neither gh CLI found nor valid EXTERNAL_SNAPSHOT_GITHUB_TOKEN available."
+    fork_payload = {"organization": SNAPSHOT_ORG}
+    create_resp = requests.post(
+        f"https://api.github.com/repos/{source_organization}/{repo_id}/forks",
+        headers=headers,
+        json=fork_payload
     )
+
+    if create_resp.status_code not in (202, 200):
+        raise RuntimeError(
+            f"❌ Fork creation failed for {gh_repo_ref}: {create_resp.status_code} {create_resp.text}"
+        )
+
+    print(f"📦 Fork request accepted. Waiting for {gh_repo_ref} to finish being created...")
+    if not wait_for_repo_ready(SNAPSHOT_ORG, repo_id, EXTERNAL_SNAPSHOT_GITHUB_TOKEN):
+        raise RuntimeError(f"❌ Fork {gh_repo_ref} not ready after waiting period.")
+
+    print(f"✅ Fork {gh_repo_ref} ready for use.")
+    return remote_repo
 
 # --- Main logic ---
 def main():
@@ -1019,7 +1005,10 @@ def main():
                             print(f"🌿 Created snapshot branch {snapshot_branch} for {branch}")
 
                         # --- Ensure remote repo exists ---
-                        remote_repo_url = ensure_snapshot_remote_repo(repo_id)
+                        cfg = repo_config.get(repo_id, {})
+                        source_repo_url = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+                        source_organization = source_repo_url.split('/')[3]
+                        remote_repo_url = ensure_snapshot_remote_repo(repo_id, source_organization)
 
                         # --- Inject token for HTTPS URL ---
                         if remote_repo_url.startswith("https://"):
