@@ -722,13 +722,17 @@ def generate_repo_branch_changes(markdown_output, repo_config, repo_categories, 
     markdown_output += "\n"
     return markdown_output
 
+# --- Updated generate_markdown_for_commits with repo_filter support ---
 def generate_markdown_for_commits(
-    tracking_commits, repo_config, repo_categories, events, category_filter=None
+    tracking_commits, repo_config, repo_categories, events,
+    category_filter=None,
+    repo_filter=None
 ) -> str:
     """
     Generate markdown content for commits.
-    If category_filter is None, include all repos.
-    If category_filter is a string, include only repos belonging to that category.
+
+    - If category_filter is provided, only include repos in that category.
+    - If repo_filter is provided, only include that specific repo.
     """
     markdown_output = "# Zimbra Tracker – Changes Timeline\n\n"
 
@@ -737,8 +741,8 @@ def generate_markdown_for_commits(
     for ev in events:
         markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
 
-    # Traverse commits **newest to oldest**
-    for commit_hash in reversed(tracking_commits):
+    # Traverse commits oldest → newest
+    for commit_hash in tracking_commits:
         # Get parent commits
         parents_line = run_cmd(
             ["git", "rev-list", "--parents", "-n", "1", commit_hash],
@@ -784,6 +788,8 @@ def generate_markdown_for_commits(
                 for repo_id in new_repos:
                     if category_filter and category_filter not in repo_categories.get(repo_id, []):
                         continue
+                    if repo_filter and repo_id != repo_filter:
+                        continue
                     categories_str = ", ".join(repo_categories.get(repo_id, ["uncategorized"]))
                     markdown_output += f"- **{repo_id} ({categories_str})**\n"
                 markdown_output += "\n"
@@ -793,38 +799,17 @@ def generate_markdown_for_commits(
                 for repo_id in removed_repos:
                     if category_filter and category_filter not in repo_categories.get(repo_id, []):
                         continue
+                    if repo_filter and repo_id != repo_filter:
+                        continue
                     markdown_output += f"- **{repo_id}**\n"
-                markdown_output += "\n"
-
-        # --- Global tags changes ---
-        current_tags_raw = read_tracking_file(commit_hash, "all-tags.txt")
-        parent_tags_raw = read_tracking_file(parent_hash, "all-tags.txt")
-
-        current_tags = [t.strip() for t in current_tags_raw.splitlines() if t.strip()] if current_tags_raw else []
-        parent_tags = [t.strip() for t in parent_tags_raw.splitlines() if t.strip()] if parent_tags_raw else []
-
-        new_global_tags = sorted(set(current_tags) - set(parent_tags))
-        removed_global_tags = sorted(set(parent_tags) - set(current_tags))
-
-        if new_global_tags or removed_global_tags:
-            markdown_output += "### 🏷️ Global Tags Changes\n\n"
-
-            if new_global_tags:
-                markdown_output += "#### 🆕 New Global Tags\n\n"
-                for tag in new_global_tags:
-                    markdown_output += f"- **{tag}**\n"
-                markdown_output += "\n"
-
-            if removed_global_tags:
-                markdown_output += "#### 🗑️ Removed Global Tags\n\n"
-                for tag in removed_global_tags:
-                    markdown_output += f"- **{tag}**\n"
                 markdown_output += "\n"
 
         # --- Repository-specific tag & branch changes ---
         all_repos = sorted(set(current_repos))
         for repo_id in all_repos:
             if category_filter and category_filter not in repo_categories.get(repo_id, []):
+                continue
+            if repo_filter and repo_id != repo_filter:
                 continue
 
             # Tag changes
@@ -839,76 +824,76 @@ def generate_markdown_for_commits(
 
     return markdown_output
 
+
+# --- Abstract helper to write forward & reverse timeline ---
+def write_timeline_files(output_dir, tracking_commits, repo_config, repo_categories, events,
+                         category_filter=None, repo_filter=None):
+    """
+    Generate forward and reverse markdown timelines in the given folder.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Forward timeline (oldest → newest)
+    forward_file = os.path.join(output_dir, "changes_timeline.md")
+    with open(forward_file, "w") as f:
+        f.write(generate_markdown_for_commits(
+            tracking_commits, repo_config, repo_categories, events,
+            category_filter=category_filter, repo_filter=repo_filter
+        ))
+
+    # Reverse timeline (newest → oldest)
+    reverse_file = os.path.join(output_dir, "changes_timeline_reverse.md")
+    with open(reverse_file, "w") as f:
+        f.write(generate_markdown_for_commits(
+            list(reversed(tracking_commits)), repo_config, repo_categories, events,
+            category_filter=category_filter, repo_filter=repo_filter
+        ))
+
+
 # --- Main logic ---
 def main():
-
-    if snapshot_mode:
-        if not EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
-            raise RuntimeError(
-                "EXTERNAL_SNAPSHOT_GITHUB_TOKEN is not defined. "
-                "Please export it in your environment before running generate_changes.py"
-            )
+    if snapshot_mode and not EXTERNAL_SNAPSHOT_GITHUB_TOKEN:
+        raise RuntimeError(
+            "EXTERNAL_SNAPSHOT_GITHUB_TOKEN is not defined. "
+            "Please export it in your environment before running generate_changes.py"
+        )
 
     print("🔍 Generating Markdown changes timeline...")
 
     ensure_events_branch_exists()
     ensure_events_worktree()
-
-    # Ensure markdown worktree and branch exist first
     ensure_markdown_worktree()
 
-    # Load events from the tracking repo (static folder)
+    # Load events and commits
     events = load_events()
-
-    # Read tracking repo commits directly (oldest → newest)
     tracking_commits = read_tracking_commits()
 
-    markdown_output = "# Zimbra Tracker – Changes Timeline\n\n"
-
-    # Add events
-    markdown_output += "## Events\n\n"
-    for ev in events:
-        markdown_output += f"### {ev['title']} ({ev['date']})\n\n{ev['description']}\n\n"
-
+    # Load repos config and categories
     repo_config = load_repo_config("tracked_repos.list")
     tracked_repo_ids = list(repo_config.keys())
     repo_categories = load_categories("categories.yaml", tracked_repo_ids)
 
-    # --- Generate full timeline ---
-    markdown_output = generate_markdown_for_commits(
-        tracking_commits, repo_config, repo_categories, events
-    )
+    # --- Global timelines ---
+    write_timeline_files(os.path.join(MARKDOWN_WORKTREE_DIR, "global"),
+                         tracking_commits, repo_config, repo_categories, events)
 
-    # Write changes_timeline.md
-    os.makedirs(MARKDOWN_WORKTREE_DIR, exist_ok=True)
-    timeline_file = os.path.join(MARKDOWN_WORKTREE_DIR, "changes_timeline.md")
-    with open(timeline_file, "w") as f:
-        f.write(markdown_output)
-
-    # --- Write per-category files ---
+    # --- Category-specific timelines ---
     categories_dir = os.path.join(MARKDOWN_WORKTREE_DIR, "categories")
-    os.makedirs(categories_dir, exist_ok=True)
-
-    # _index.md
-    index_file = os.path.join(categories_dir, "_index.md")
-    with open(index_file, "w") as f:
-        f.write("# Categories Index\n\n")
-        for category in sorted(set(sum(repo_categories.values(), []))):  # flatten and unique
-            f.write(f"- [{category}](./{category}.md)\n")
-
-    # Each category file
     for category in sorted(set(sum(repo_categories.values(), []))):
-        category_file = os.path.join(categories_dir, f"{category}.md")
-        category_markdown = generate_markdown_for_commits(
-            tracking_commits, repo_config, repo_categories, events, category_filter=category
-        )
-        with open(category_file, "w") as f:
-            f.write(category_markdown)
+        write_timeline_files(os.path.join(categories_dir, category),
+                             tracking_commits, repo_config, repo_categories, events,
+                             category_filter=category)
 
-    # Commit timeline + categories
+    # --- Repo-specific timelines ---
+    repos_dir = os.path.join(MARKDOWN_WORKTREE_DIR, "repos")
+    for repo_id in tracked_repo_ids:
+        write_timeline_files(os.path.join(repos_dir, repo_id),
+                             tracking_commits, repo_config, repo_categories, events,
+                             repo_filter=repo_id)
+
+    # --- Commit all markdown worktree changes ---
     if has_changes(MARKDOWN_WORKTREE_DIR):
-        run_cmd(["git", "add", "changes_timeline.md"], cwd=MARKDOWN_WORKTREE_DIR)
-        run_cmd(["git", "add", "categories"], cwd=MARKDOWN_WORKTREE_DIR)
+        run_cmd(["git", "add", "."], cwd=MARKDOWN_WORKTREE_DIR)
         run_cmd(
             ["git", "commit", "-m", f"Update markdown changes ({datetime.now().isoformat()})"],
             cwd=MARKDOWN_WORKTREE_DIR,
