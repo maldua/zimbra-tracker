@@ -652,6 +652,9 @@ def generate_repo_branch_changes(markdown_output, repo_config, repo_categories, 
     markdown_output += f"### 🌿 Branch Changes in **{repo_id}**\n\n"
 
     # New Branches
+    if new_branches:
+        markdown_output += f"#### 🌱 New Branches in **{repo_id}**\n\n"
+
     for branch in new_branches:
         cfg = repo_config.get(repo_id, {})
         base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
@@ -662,9 +665,14 @@ def generate_repo_branch_changes(markdown_output, repo_config, repo_categories, 
         if branch_file:
             branch_file_path = f"repos/{repo_id}/branches/{branch_file}"
             markdown_output = format_recent_commits(repo_config, commit_hash, markdown_output, repo_id, branch, branch_file_path, "")
-    markdown_output += "\n"
+
+    if new_branches:
+        markdown_output += "\n"
 
     # Changed Branches
+    if changed_branches:
+        markdown_output += f"#### 🌿 Changed Branches in **{repo_id}**\n\n"
+
     for branch in changed_branches:
         cfg = repo_config.get(repo_id, {})
         base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
@@ -718,6 +726,9 @@ def generate_repo_branch_changes(markdown_output, repo_config, repo_categories, 
         markdown_output += "\n"
 
     # Removed Branches
+    if removed_branches:
+        markdown_output += f"#### 🍂 Removed Branches in **{repo_id}**\n\n"
+
     for branch in removed_branches:
         parent_commit = parent_branches[branch].get("latest_commit", "unknown")
         markdown_output += f"- **{branch}** (was `{parent_commit}`)\n"
@@ -1051,8 +1062,11 @@ def main():
 
                         # --- Create snapshot branches ---
                         for branch in new_branches + changed_branches:
-                            commits = current_branches[branch]
-                            latest_commit = commits[-1]
+                            latest_commit = current_branches[branch].get("latest_commit")
+                            if not latest_commit:
+                                print(f"⚠️ No latest_commit for branch {branch}, skipping snapshot")
+                                continue
+
                             snapshot_branch = snapshot_name_for(branch)
                             subprocess.run(
                                 ["git", "branch", "-f", snapshot_branch, latest_commit],
