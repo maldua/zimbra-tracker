@@ -60,8 +60,20 @@ _API_CALL_INTERVAL = 1.5  # seconds between requests
 def run_cmd(cmd, cwd=None):
     """Run shell command and return stdout as string."""
     result = run(cmd, cwd=cwd, stdout=PIPE, stderr=PIPE, text=True)
+
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed: {' '.join(cmd)}\n{result.stderr}")
+        msg = [f"Command failed: {' '.join(cmd)}"]
+
+        if result.stdout.strip():
+            msg.append("STDOUT:")
+            msg.append(result.stdout.rstrip())
+
+        if result.stderr.strip():
+            msg.append("STDERR:")
+            msg.append(result.stderr.rstrip())
+
+        raise RuntimeError("\n".join(msg))
+
     return result.stdout.strip()
 
 def detect_git_platform(url):
