@@ -743,7 +743,17 @@ def generate_repo_branch_changes(markdown_output, repo_config, repo_categories, 
 
     for branch in removed_branches:
         parent_commit = parent_branches[branch].get("latest_commit", "unknown")
-        markdown_output += f"- **{branch}** (was `{parent_commit}`)\n"
+
+        cfg = repo_config.get(repo_id, {})
+        base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+        platform = cfg.get("platform", "github")
+        links = make_repo_links(base, platform, repo_id, branch, type="commit", commit_hash=parent_commit)
+
+        markdown_output += f"- **[{branch}]({links['ref']})** (was [{parent_commit}]({links['commit']})) | [Branch]({links['ref']}) | [Tree]({links['tree']}) | [Commits]({links['commits']}) | Recent commits 👇\n"
+        branch_file = parent_branches[branch].get("file")
+        if branch_file:
+            branch_file_path = f"repos/{repo_id}/branches/{branch_file}"
+            markdown_output = format_recent_commits(repo_config, parent_hash, markdown_output, repo_id, branch, branch_file_path, "")
 
     markdown_output += "\n"
     return markdown_output
