@@ -97,15 +97,15 @@ def read_tracked_repos():
     return repos
 
 def ensure_repo_cloned(repo_id, clone_url):
-    """Clone the repo in temporary directory if not exists, else fetch updates"""
+    """Clone the repo in temporary directory if not exists, else fetch updates and prune deleted branches/tags"""
     os.makedirs(TMP_REPOS_DIR, exist_ok=True)
     path = os.path.join(TMP_REPOS_DIR, repo_id)
     if not os.path.exists(path):
         print(f"Cloning {repo_id}...")
         run_throttled_git_cmd(["git", "clone", "--mirror", clone_url, path], check=True)
     else:
-        print(f"Fetching updates for {repo_id}...")
-        run_throttled_git_cmd(["git", "fetch", "--all"], cwd=path, check=True)
+        print(f"Fetching updates for {repo_id}, pruning deleted branches and tags...")
+        run_throttled_git_cmd(["git", "fetch", "--all", "--prune", "--tags"], cwd=path, check=True)
     return path
 
 def export_ref_commits(repo_path, ref_name, file_path, manifest):
