@@ -1056,6 +1056,9 @@ def main():
 
                     if new_tags or changed_tags or new_branches or changed_branches:
                         repo_changed = True
+                        # Deleted tags are not deleted in the snapshot repo on purpose
+                        # Deleted branches are not deleted in the snapshot repo on purpose
+                        # That way historic tags and branches are archived
 
                     if repo_changed:
                         print(f"📦 Processing snapshots for repo {repo_id}...")
