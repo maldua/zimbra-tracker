@@ -617,8 +617,48 @@ def generate_repo_tag_changes(markdown_output, repo_config, repo_categories, rep
     if removed_tags:
         markdown_output += "#### 🗑️ Removed Tags\n\n"
         for tag in removed_tags:
+            cfg = repo_config.get(repo_id, {})
+            base = cfg.get("base", f"https://github.com/Zimbra/{repo_id}")
+            platform = cfg.get("platform", "github")
+            links = make_repo_links(base, platform, repo_id, tag, parent_commit)
+
             parent_commit = parent_tags[tag].get("latest_commit", "unknown")
-            markdown_output += f"- **{tag}** (was `{parent_commit}`)\n"
+
+            # Strike through links to imply they no longer work
+            markdown_output += (
+                f"- ~[{tag}]({links['ref']})~ | "
+                f"~[Tag]({links['ref']})~ | "
+                f"~[Tree]({links['tree']})~ | "
+                f"~[Commits]({links['commits']})~"
+            )
+
+            if snapshot_mode:
+                snapshot_base = f"https://github.com/{SNAPSHOT_ORG}/{repo_id}"
+                snapshot_links = make_repo_links(snapshot_base, platform, repo_id, tag)
+                markdown_output += (
+                    f" | [Snapshot Tag]({snapshot_links['ref']}) | "
+                    f"[Tree]({snapshot_links['tree']}) | "
+                    f"[Commits]({snapshot_links['commits']})"
+                )
+
+            markdown_output += f" | **{tag}** was [{parent_commit}]({links['commit']}) | Last commits before deletion 👇\n"
+
+            # --- Load last 5 commits before deletion (parent only)
+            parent_tag_file = parent_tags[tag].get("file")
+            if parent_tag_file:
+                parent_file_path = f"repos/{repo_id}/tags/{parent_tag_file}"
+                markdown_output = format_recent_commits(
+                    repo_config,
+                    parent_hash,
+                    markdown_output,
+                    repo_id,
+                    tag,
+                    parent_file_path,
+                    ""
+                )
+
+            markdown_output += "\n"
+
         markdown_output += "\n"
 
     return markdown_output
