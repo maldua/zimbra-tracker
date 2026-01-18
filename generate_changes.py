@@ -986,7 +986,6 @@ def main():
 
     # --- Commit all markdown worktree changes ---
     if has_changes(MARKDOWN_WORKTREE_DIR):
-        run_cmd(["git", "add", "changes_timeline.md"], cwd=MARKDOWN_WORKTREE_DIR)
         run_cmd(["git", "add", "categories"], cwd=MARKDOWN_WORKTREE_DIR)
         run_cmd(["git", "add", "global"], cwd=MARKDOWN_WORKTREE_DIR)
         run_cmd(["git", "add", "repos"], cwd=MARKDOWN_WORKTREE_DIR)
